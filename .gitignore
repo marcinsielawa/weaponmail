@@ -20,3 +20,6 @@
 # --- INFRASTRUCTURE (Docker/Local) ---
 **/data/
 **/.env
+
+
+**/.mvn
