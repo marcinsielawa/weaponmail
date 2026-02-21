@@ -1,0 +1,22 @@
+# --- BACKEND (Java/Maven) ---
+**/target/
+**/.classpath
+**/.project
+**/.settings/
+**/.idea/
+**/*.iml
+**/*.class
+**/bin/
+
+# --- FRONTEND (Angular/Node) ---
+**/node_modules/
+**/dist/
+**/.angular/
+**/.vscode/
+**/.editorconfig
+**/npm-debug.log*
+**/yarn-error.log*
+
+# --- INFRASTRUCTURE (Docker/Local) ---
+**/data/
+**/.env
