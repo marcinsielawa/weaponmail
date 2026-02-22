@@ -1,10 +1,10 @@
 package com.weaponmail.message;
 
-public class MessageDetail {
-    public String id;
-    public String sender;
-    public String subject;
-    public String encryptedBody;
-    public String messageKey;
-    public String senderPublicKey;
-}
+public record MessageDetail(
+        String id,
+        String sender,
+        String subject,
+        String encryptedBody,
+        String messageKey,
+        String senderPublicKey
+) {}

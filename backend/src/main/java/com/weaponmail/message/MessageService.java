@@ -8,52 +8,55 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.stereotype.Service;
 
+import com.datastax.oss.driver.api.core.uuid.Uuids;
+
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @Service
 public class MessageService {
 
-    private final ConcurrentHashMap<String, List<MessageSummary>> database = new ConcurrentHashMap<>();
+    private final MessageRepository repository;
 
-    private final ConcurrentHashMap<String, MessageDetail> messageStore = new ConcurrentHashMap<>();
-
-    public MessageService() {
-        database.put("INBOX", new ArrayList<>());
-        database.put("SENT", new ArrayList<>());
+    public MessageService(MessageRepository repository) {
+        this.repository = repository;
     }
 
-    public Flux<MessageSummary> getMessages(String type) {
-        return Flux.fromIterable(database.getOrDefault(type.toUpperCase(), Collections.emptyList()));
+    public Flux<MessageSummary> getMessages(String recipient) {
+        return repository.findAllByKeyRecipient(recipient)
+            .map(entity -> new MessageSummary(
+                entity.getKey().id().toString(),
+                "ANONYMOUS",
+                entity.getSubject(),
+                Uuids.unixTimestamp(entity.getKey().id()) // Extract the time from the ID!
+            ));
+    }
+    public Mono<Void> sendMessage(MessageRequest request) {
+        MessageEntity entity = new MessageEntity();
+        entity.setKey(new MessageKey(request.recipient(), Uuids.timeBased()));
+        entity.setSubject(request.subject());          // Record access!
+        entity.setEncryptedBody(request.encryptedBody());
+        entity.setMessageKey(request.messageKey());
+        entity.setSenderPublicKey(request.senderPublicKey());
+
+        return repository.save(entity).then();
     }
 
-    public Mono<MessageSummary> sendMessage(MessageRequest request) {
-        return Mono.fromRunnable(() -> {
-            MessageSummary summary = new MessageSummary();
-
-            summary.id = UUID.randomUUID().toString();
-            summary.sender = "me@weaponmail.io";
-            summary.subject = request.subject;
-            summary.timestamp = System.currentTimeMillis();
-            
-            MessageDetail detail = new MessageDetail();
-            detail.id = summary.id;
-            detail.sender = summary.sender;
-            detail.subject = summary.subject;
-            detail.encryptedBody = request.encryptedBody;
-            detail.messageKey = request.messageKey;
-            detail.senderPublicKey = request.senderPublicKey;
-            
-            messageStore.put(summary.id, detail);
-
-            database.get("INBOX").add(summary);
-            database.get("SENT").add(summary);
-
-        });
+    
+    public Mono<MessageDetail> getMessageById(String recipient, String id) {
+        
+        MessageKey key = new MessageKey(recipient, UUID.fromString(id));
+        return repository.findById(key) 
+                .map(entity -> new MessageDetail(
+                    entity.getKey().id().toString(),
+                    "ANONYMOUS",
+                    entity.getSubject(),
+                    entity.getEncryptedBody(),
+                    entity.getMessageKey(),
+                    entity.getSenderPublicKey()
+                ));
+        
     }
-
-    public Mono<MessageDetail> getMessageById(String id) {
-        return Mono.justOrEmpty(messageStore.get(id));
-    }
+    
 
 }
