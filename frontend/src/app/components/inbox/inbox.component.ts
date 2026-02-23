@@ -1,17 +1,16 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterModule } from '@angular/router'; // Added for routerLink
 import { MessageService, MessageSummary } from '../../services/message.service';
 
 @Component({
   selector: 'app-inbox',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, RouterModule], // Added RouterModule here
   templateUrl: './inbox.component.html',
   styleUrl: './inbox.component.scss'
 })
 export class InboxComponent implements OnInit {
-
-  // SIGNALS: The source of truth
   messages = signal<MessageSummary[]>([]);
   loading = signal<boolean>(false);
   recipient = signal<string>('marcin@weaponmail.io');
