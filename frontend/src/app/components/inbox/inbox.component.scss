@@ -1,0 +1,45 @@
+.inbox-container {
+  max-width: 800px;
+  margin: 40px auto;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.inbox-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid #b7a05a;
+  padding-bottom: 10px;
+  margin-bottom: 20px;
+}
+
+.message-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.message-row {
+  display: grid;
+  grid-template-columns: 150px 1fr 150px;
+  padding: 15px;
+  background: white;
+  border-radius: 4px;
+  border: 1px solid #eee;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.message-row:hover {
+  transform: translateX(5px);
+  border-color: #b7a05a;
+}
+
+.msg-sender { font-weight: bold; color: #555; }
+.msg-subject { color: #111; }
+.msg-date { text-align: right; color: #999; font-size: 0.9em; }
+
+.empty-state { text-align: center; color: #aaa; padding: 40px; }

@@ -1,0 +1,22 @@
+<div class="inbox-container">
+  <div class="inbox-header">
+    <h2>Inbox: {{ recipient() }}</h2>
+    <button (click)="refreshInbox()" [disabled]="loading()">
+      {{ loading() ? 'Refreshing...' : 'Refresh' }}
+    </button>
+  </div>
+
+  <div class="message-list">
+    @if (messages().length === 0 && !loading()) {
+      <div class="empty-state">No messages in your vault.</div>
+    }
+
+    @for (msg of messages(); track msg.id) {
+      <div class="message-row">
+        <div class="msg-sender">{{ msg.sender }}</div>
+        <div class="msg-subject">{{ msg.subject }}</div>
+        <div class="msg-date">{{ msg.timestamp | date:'short' }}</div>
+      </div>
+    }
+  </div>
+</div>
