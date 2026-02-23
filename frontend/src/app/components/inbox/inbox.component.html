@@ -1,10 +1,13 @@
 <div class="inbox-container">
-  <div class="inbox-header">
-    <h2>Inbox: {{ recipient() }}</h2>
-    <button (click)="refreshInbox()" [disabled]="loading()">
-      {{ loading() ? 'Refreshing...' : 'Refresh' }}
-    </button>
-  </div>
+	<div class="inbox-header">
+	  <h2>Inbox: {{ recipient() }}</h2>
+	  <div class="header-actions">
+	    <button routerLink="/compose" class="btn-compose">Compose</button>
+	    <button (click)="refreshInbox()" [disabled]="loading()">
+	      {{ loading() ? 'Refreshing...' : 'Refresh' }}
+	    </button>
+	  </div>
+	</div>
 
   <div class="message-list">
     @if (messages().length === 0 && !loading()) {
@@ -20,3 +23,5 @@
     }
   </div>
 </div>
+
+

@@ -1,0 +1,47 @@
+<div class="compose-container">
+  <div class="compose-header">
+    <h2>New Encrypted Message</h2>
+    <a routerLink="/inbox" class="btn-cancel">Cancel</a>
+  </div>
+
+  <form (submit)="send(); $event.preventDefault()" class="compose-form">
+    <div class="form-group">
+      <label>Recipient Vault Address</label>
+      <input 
+        type="email" 
+        [ngModel]="recipient()" 
+        (ngModelChange)="recipient.set($event)"
+        name="recipient"
+        placeholder="user@weaponmail.io" 
+        required>
+    </div>
+
+    <div class="form-group">
+      <label>Subject (Cleartext Metadata)</label>
+      <input 
+        type="text" 
+        [ngModel]="subject()" 
+        (ngModelChange)="subject.set($event)"
+        name="subject"
+        placeholder="Brief reference..." 
+        required>
+    </div>
+
+    <div class="form-group">
+      <label>Message (Will be E2E Encrypted)</label>
+      <textarea 
+        [ngModel]="body()" 
+        (ngModelChange)="body.set($event)"
+        name="body"
+        rows="10" 
+        placeholder="Type your secure message here..."
+        required></textarea>
+    </div>
+
+    <div class="actions">
+      <button type="submit" [disabled]="sending() || !recipient() || !body()">
+        {{ sending() ? 'Encrypting & Sending...' : 'Send to Vault' }}
+      </button>
+    </div>
+  </form>
+</div>
