@@ -8,7 +8,7 @@ import org.springframework.data.cassandra.core.mapping.Table;
 public class MessageEntity {
 
     @PrimaryKey
-    private MessageKey key; // This now holds both recipient and id
+    private MessageKey key;
 
     @Column("subject")
     private String subject;
@@ -22,21 +22,22 @@ public class MessageEntity {
     @Column("sender_public_key")
     private String senderPublicKey;
 
+    @Column("sender_blind_token")
+    private String senderBlindToken;
+
     public MessageEntity() {}
 
     // --- Getters & Setters ---
     public MessageKey getKey() { return key; }
     public void setKey(MessageKey key) { this.key = key; }
-
     public String getSubject() { return subject; }
     public void setSubject(String subject) { this.subject = subject; }
-
     public String getEncryptedBody() { return encryptedBody; }
     public void setEncryptedBody(String encryptedBody) { this.encryptedBody = encryptedBody; }
-
     public String getMessageKey() { return messageKey; }
     public void setMessageKey(String messageKey) { this.messageKey = messageKey; }
-
     public String getSenderPublicKey() { return senderPublicKey; }
     public void setSenderPublicKey(String senderPublicKey) { this.senderPublicKey = senderPublicKey; }
+    public String getSenderBlindToken() { return senderBlindToken; }
+    public void setSenderBlindToken(String senderBlindToken) { this.senderBlindToken = senderBlindToken; }
 }

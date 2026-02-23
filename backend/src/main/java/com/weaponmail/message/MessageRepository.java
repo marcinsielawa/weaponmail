@@ -1,16 +1,18 @@
 package com.weaponmail.message;
 
-import java.util.UUID;
-
 import org.springframework.data.cassandra.repository.ReactiveCassandraRepository;
 import org.springframework.stereotype.Repository;
-
 import reactor.core.publisher.Flux;
+import java.util.UUID;
 
 @Repository
 public interface MessageRepository extends ReactiveCassandraRepository<MessageEntity, MessageKey> {
 
-    // ScyllaDB will find these instantly because 'recipient' is the Partition Key
     Flux<MessageEntity> findAllByKeyRecipient(String recipient);
 
+    // ZERO-KNOWLEDGE SEARCH: Find specific sender token within recipient's inbox
+    Flux<MessageEntity> findAllByKeyRecipientAndSenderBlindToken(String recipient, String token);
+    
+    // THREADING: Find all messages in a specific conversation
+    Flux<MessageEntity> findAllByKeyRecipientAndKeyThreadId(String recipient, UUID threadId);
 }

@@ -30,11 +30,22 @@ public class MessageController {
         return messageService.getMessages(recipient);
     }
     
-    @GetMapping("/{recipient}/{id}")
+    @GetMapping("/{recipient}/{threadId}/{id}")
     public Mono<MessageDetail> getMessage(
             @PathVariable String recipient,
+            @PathVariable String threadId,
             @PathVariable String id) {
-        return messageService.getMessageById(recipient, id);
+        return messageService.getMessageById(recipient, threadId, id);
+    }
+
+    /**
+     * SEARCH: Find messages from a specific sender (using the blind token).
+     */
+    @GetMapping("/{recipient}/search/{token}")
+    public Flux<MessageSummary> searchBySender(
+            @PathVariable String recipient,
+            @PathVariable String token) {
+        return messageService.searchBySender(recipient, token);
     }
 
 }

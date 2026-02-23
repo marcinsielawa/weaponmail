@@ -12,6 +12,9 @@ public record MessageKey(
     @PrimaryKeyColumn(name = "recipient", ordinal = 0, type = PrimaryKeyType.PARTITIONED)
     String recipient,
 
-    @PrimaryKeyColumn(name = "id", ordinal = 1, type = PrimaryKeyType.CLUSTERED, ordering = Ordering.DESCENDING)
+    @PrimaryKeyColumn(name = "thread_id", ordinal = 1, type = PrimaryKeyType.CLUSTERED)
+    UUID threadId,
+
+    @PrimaryKeyColumn(name = "id", ordinal = 2, type = PrimaryKeyType.CLUSTERED, ordering = Ordering.DESCENDING)
     UUID id
 ) implements Serializable {}

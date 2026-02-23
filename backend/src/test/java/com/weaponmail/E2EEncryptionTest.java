@@ -14,6 +14,7 @@ import reactor.test.StepVerifier;
 
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -28,44 +29,46 @@ public class E2EEncryptionTest {
         String originalMessage = "The eagle has landed in Stockholm";
         String targetEmail = "marcin@weaponmail.io";
 
-        // 1. RECIPIENT SETUP (User B)
-        AsymmetricCipherKeyPair   recipientKeys = CryptoTestUtils.generateX25519KeyPair();
-        X25519PublicKeyParameters recipientPub  = (X25519PublicKeyParameters) recipientKeys.getPublic();
+        // 1. RECIPIENT SETUP
+        AsymmetricCipherKeyPair recipientKeys = CryptoTestUtils.generateX25519KeyPair();
+        X25519PublicKeyParameters recipientPub = (X25519PublicKeyParameters) recipientKeys.getPublic();
 
-        // 2. SENDER ACTION (User A)
+        // 2. SENDER ACTION
         byte[] messageKey = new byte[32];
         new SecureRandom().nextBytes(messageKey);
         String encryptedBody = CryptoTestUtils.encrypt(originalMessage, messageKey);
         AsymmetricCipherKeyPair ephemeral = CryptoTestUtils.generateX25519KeyPair();
-        byte[] sharedSecret = CryptoTestUtils.calculateSharedSecret((X25519PrivateKeyParameters) ephemeral.getPrivate(),
-                recipientPub);
+        byte[] sharedSecret = CryptoTestUtils.calculateSharedSecret((X25519PrivateKeyParameters) ephemeral.getPrivate(), recipientPub);
         String wrappedKey = CryptoTestUtils.encrypt(Base64.getEncoder().encodeToString(messageKey), sharedSecret);
 
-        // 3. SERVER ACTION (Store)
-        MessageRequest request = new MessageRequest(targetEmail, "Secret Operation", encryptedBody, wrappedKey,
-                CryptoTestUtils.encodePublicKey((X25519PublicKeyParameters) ephemeral.getPublic()));
+        // 3. SERVER ACTION (Store with Threading and Blind Token)
+        MessageRequest request = new MessageRequest(
+            targetEmail, 
+            null, // New Thread
+            "Secret Operation", 
+            encryptedBody, 
+            wrappedKey,
+            CryptoTestUtils.encodePublicKey((X25519PublicKeyParameters) ephemeral.getPublic()),
+            "BLIND-HASH-TOKEN-XYZ" // New Blind Token
+        );
 
-        // We block here just for the test setup to ensure it's saved
         service.sendMessage(request).block();
-
-        // Give Scylla a millisecond to index
-        Thread.sleep(200);
+        Thread.sleep(200); // Wait for indexing
 
         // 4. RECIPIENT ACTION (The Senior Reactive Chain)
-        //  Chain the calls!
         StepVerifier.create(
-                service.getMessages(targetEmail).flatMap(summary -> service.getMessageById(targetEmail, summary.id())) 
+            service.getMessages(targetEmail)
+                   .flatMap(summary -> service.getMessageById(targetEmail, summary.threadId(), summary.id())) 
         ).assertNext(detail -> {
             try {
-                // A. Unwrap the Message Key
+                // Decrypt the Message Key using Recipient's Private Key + Sender's Public Key
                 X25519PublicKeyParameters senderPub = CryptoTestUtils.decodePublicKey(detail.senderPublicKey());
-                byte[] readerSecret = CryptoTestUtils
-                        .calculateSharedSecret((X25519PrivateKeyParameters) recipientKeys.getPrivate(), senderPub);
+                byte[] readerSecret = CryptoTestUtils.calculateSharedSecret((X25519PrivateKeyParameters) recipientKeys.getPrivate(), senderPub);
 
                 String decryptedKmBase64 = CryptoTestUtils.decrypt(detail.messageKey(), readerSecret);
                 byte[] actualKm = Base64.getDecoder().decode(decryptedKmBase64);
 
-                // B. Decrypt the Body
+                // Decrypt the Body
                 String decryptedMessage = CryptoTestUtils.decrypt(detail.encryptedBody(), actualKm);
 
                 assertEquals(originalMessage, decryptedMessage);
@@ -74,7 +77,6 @@ public class E2EEncryptionTest {
             } catch (Exception e) {
                 throw new RuntimeException("Decryption logic failed", e);
             }
-        }).thenCancel() // This tells the test: "I only care about the first message, ignore the rest"
-                .verify();
+        }).thenCancel().verify();
     }
 }

@@ -24,28 +24,50 @@ public class MessageService {
 
     public Flux<MessageSummary> getMessages(String recipient) {
         return repository.findAllByKeyRecipient(recipient)
-            .map(entity -> new MessageSummary(
-                entity.getKey().id().toString(),
-                "ANONYMOUS",
-                entity.getSubject(),
-                Uuids.unixTimestamp(entity.getKey().id()) // Extract the time from the ID!
-            ));
+            .map(this::mapToSummary);
     }
+
     public Mono<Void> sendMessage(MessageRequest request) {
         MessageEntity entity = new MessageEntity();
-        entity.setKey(new MessageKey(request.recipient(), Uuids.timeBased()));
-        entity.setSubject(request.subject());          // Record access!
+        
+        // Handle Threading: Use existing threadId or generate a fresh one
+        UUID threadId = (request.threadId() != null) 
+            ? UUID.fromString(request.threadId()) 
+            : UUID.randomUUID();
+
+        entity.setKey(new MessageKey(request.recipient(), threadId, Uuids.timeBased()));
+        entity.setSubject(request.subject());
         entity.setEncryptedBody(request.encryptedBody());
         entity.setMessageKey(request.messageKey());
         entity.setSenderPublicKey(request.senderPublicKey());
+        entity.setSenderBlindToken(request.senderBlindToken());
 
         return repository.save(entity).then();
     }
 
+    public Flux<MessageSummary> searchBySender(String recipient, String token) {
+        return repository.findAllByKeyRecipientAndSenderBlindToken(recipient, token)
+            .map(this::mapToSummary);
+    }
+
+    private MessageSummary mapToSummary(MessageEntity entity) {
+        return new MessageSummary(
+            entity.getKey().id().toString(),
+            entity.getKey().threadId().toString(), // Map the thread ID
+            "ANONYMOUS",
+            entity.getSubject(),
+            Uuids.unixTimestamp(entity.getKey().id())
+        );
+    }
     
-    public Mono<MessageDetail> getMessageById(String recipient, String id) {
+    // The "Weaponized" 3-param lookup
+    public Mono<MessageDetail> getMessageById(String recipient, String threadId, String id) {
+        MessageKey key = new MessageKey(
+            recipient, 
+            UUID.fromString(threadId), 
+            UUID.fromString(id)
+        );
         
-        MessageKey key = new MessageKey(recipient, UUID.fromString(id));
         return repository.findById(key) 
                 .map(entity -> new MessageDetail(
                     entity.getKey().id().toString(),
@@ -55,8 +77,6 @@ public class MessageService {
                     entity.getMessageKey(),
                     entity.getSenderPublicKey()
                 ));
-        
     }
-    
 
 }
