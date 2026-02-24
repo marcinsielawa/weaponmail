@@ -15,22 +15,16 @@
 	<name>message-backend</name>
 	<description>Message backend</description>
 	<url />
-	<licenses>
-		<license />
-	</licenses>
-	<developers>
-		<developer />
-	</developers>
+	<licenses><license /></licenses>
+	<developers><developer /></developers>
 	<scm>
-		<connection />
-		<developerConnection />
-		<tag />
-		<url />
+		<connection /><developerConnection /><tag /><url />
 	</scm>
 	<properties>
 		<java.version>25</java.version>
 	</properties>
 	<dependencies>
+
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-webflux</artifactId>
@@ -47,6 +41,8 @@
 			<artifactId>spring-boot-starter-data-cassandra-reactive</artifactId>
 		</dependency>
 
+		<!-- ── Test Dependencies ───────────────────────────────────── -->
+
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-webflux-test</artifactId>
@@ -59,12 +55,28 @@
 			<scope>test</scope>
 		</dependency>
 
+		<!-- BouncyCastle for X25519 / AES-GCM in tests -->
 		<dependency>
 			<groupId>org.bouncycastle</groupId>
 			<artifactId>bcprov-jdk18on</artifactId>
 			<version>1.78</version>
 			<scope>test</scope>
 		</dependency>
+
+		<!-- Mockito for unit tests (AccountServiceTest) -->
+		<dependency>
+			<groupId>org.mockito</groupId>
+			<artifactId>mockito-core</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+		<!-- JUnit 5 (pulled in transitively, explicit for clarity) -->
+		<dependency>
+			<groupId>org.junit.jupiter</groupId>
+			<artifactId>junit-jupiter</artifactId>
+			<scope>test</scope>
+		</dependency>
+
 	</dependencies>
 
 	<build>

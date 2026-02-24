@@ -5,46 +5,67 @@ import reactor.core.publisher.Mono;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.UUID;
 
+/**
+ * Zero-Knowledge Account Service.
+ *
+ * Login philosophy:
+ *   - The client sends loginHash = SHA-256(password). We compare hashes.
+ *   - On success, we return the encryptedPrivateKey + passwordSalt so the
+ *     client can re-derive its master key and decrypt the private key locally.
+ *   - We NEVER have access to the private key or the password.
+ */
 @Service
 public class AccountService {
 
-    // Store users: Key = Username, Value = UserAccount
-    private final ConcurrentHashMap<String, UserAccount> userDatabase = new ConcurrentHashMap<>();
+    private final AccountRepository accountRepository;
 
-    // Store active sessions: Key = Token, Value = Username
+    // In-memory session store. For production: replace with Redis.
     private final ConcurrentHashMap<String, String> activeSessions = new ConcurrentHashMap<>();
 
-    /**
-     * Registers a new Zero-Knowledge account.
-     */
-    public Mono<Void> signUp(UserAccount account) {
-        return Mono.fromRunnable(() -> {
-            account.createdAt = System.currentTimeMillis();
-            userDatabase.put(account.username, account);
-            System.out.println("Weapon Mail: Account created for " + account.username);
-        });
+    public AccountService(AccountRepository accountRepository) {
+        this.accountRepository = accountRepository;
     }
 
     /**
-     * Verifies the login hash and returns a session token + keys.
+     * Registers a new Zero-Knowledge account.
+     * The client has already:
+     *   1. Generated an X25519 keypair in the browser
+     *   2. Derived a master key from the password using Argon2id
+     *   3. Encrypted the private key with the master key (AES-GCM)
+     *   4. Hashed the password with SHA-256 for loginHash
+     * We persist the result — never seeing the raw key or password.
+     */
+    public Mono<Void> signUp(UserAccount account) {
+        account.createdAt = System.currentTimeMillis();
+        return accountRepository.findById(account.username)
+                .flatMap(existing -> Mono.<UserAccount>error(
+                        new IllegalStateException("Username already taken: " + account.username)))
+                .switchIfEmpty(accountRepository.save(account))
+                .then();
+    }
+
+    /**
+     * Verifies the login hash and returns a session token + encrypted key material.
+     * The client will use the returned salt to re-derive its master key,
+     * then decrypt the encryptedPrivateKey locally.
      */
     public Mono<AuthResponse> login(String username, String providedHash) {
-        UserAccount account = userDatabase.get(username);
+        return accountRepository.findById(username)
+                .switchIfEmpty(Mono.error(new RuntimeException("Unauthorized")))
+                .flatMap(account -> {
+                    if (!account.loginHash.equals(providedHash)) {
+                        return Mono.error(new RuntimeException("Unauthorized: Invalid credentials"));
+                    }
+                    String token = UUID.randomUUID().toString();
+                    activeSessions.put(token, username);
 
-        if (account != null && account.loginHash.equals(providedHash)) {
-            String token = UUID.randomUUID().toString();
-            activeSessions.put(token, username);
-
-            AuthResponse response = new AuthResponse();
-            response.token = token;
-            response.publicKey = account.publicKey;
-            response.encryptedPrivateKey = account.encryptedPrivateKey;
-            response.passwordSalt = account.passwordSalt;
-
-            return Mono.just(response);
-        }
-
-        return Mono.error(new RuntimeException("Unauthorized: Invalid username or hash"));
+                    AuthResponse response = new AuthResponse();
+                    response.token = token;
+                    response.publicKey = account.publicKey;
+                    response.encryptedPrivateKey = account.encryptedPrivateKey;
+                    response.passwordSalt = account.passwordSalt;
+                    return Mono.just(response);
+                });
     }
 
     public Mono<Void> logout(String token) {
@@ -53,5 +74,12 @@ public class AccountService {
 
     public String getUsernameByToken(String token) {
         return activeSessions.get(token);
+    }
+
+    /** Fetch a user's public key so a sender can encrypt to them. */
+    public Mono<String> getPublicKey(String username) {
+        return accountRepository.findById(username)
+                .map(account -> account.publicKey)
+                .switchIfEmpty(Mono.error(new RuntimeException("User not found: " + username)));
     }
 }
