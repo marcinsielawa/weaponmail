@@ -1,0 +1,47 @@
+/* Reusing the auth styles for consistency */
+@import '../signup/signup.component.scss';
+
+.auth-footer {
+  text-align: center;
+  font-size: 0.85em;
+  color: #666;
+  margin-top: 10px;
+
+  a {
+    color: #b7a05a;
+    text-decoration: none;
+    font-weight: 600;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+.generating-state, .success-state {
+  text-align: center;
+  padding: 40px 0;
+
+  h3 { color: #b7a05a; margin-bottom: 12px; }
+  p { color: #888; font-size: 0.9em; }
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(183, 160, 90, 0.1);
+  border-top-color: #b7a05a;
+  border-radius: 50%;
+  margin: 0 auto 24px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.checkmark {
+  font-size: 3rem;
+  color: #4caf50;
+  margin-bottom: 20px;
+}

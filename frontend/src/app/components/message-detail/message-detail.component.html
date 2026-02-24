@@ -1,0 +1,56 @@
+<div class="detail-container">
+  <div class="detail-card">
+    <div class="detail-header">
+      <div class="header-main">
+        <a routerLink="/inbox" class="btn-back">← Back to Inbox</a>
+        @if (loading()) {
+          <div class="loading-badge">🔑 Decrypting...</div>
+        } @else {
+          <div class="vault-badge">🔐 Zero-Knowledge Protected</div>
+        }
+      </div>
+    </div>
+
+    @if (loading()) {
+      <div class="skeleton-view">
+        <div class="skeleton line short"></div>
+        <div class="skeleton line long"></div>
+        <div class="skeleton block"></div>
+      </div>
+    } @else if (message()) {
+      <div class="message-content">
+        <h1 class="subject">{{ message()?.subject }}</h1>
+        
+        <div class="meta-section">
+          <div class="meta-item">
+            <label>From</label>
+            <span class="value decrypted-value">{{ decryptedSender() }}</span>
+          </div>
+          <div class="meta-item">
+            <label>Vault Identity</label>
+            <span class="value code">{{ message()?.senderPublicKey?.substring(0, 16) }}...</span>
+          </div>
+        </div>
+
+        <div class="body-container">
+          <label>Encrypted Payload (Decrypted Locally)</label>
+          <div class="body-text">
+            {{ decryptedBody() }}
+          </div>
+        </div>
+        
+        <div class="security-footer">
+          <p>
+            <strong>Security Note:</strong> This content was decrypted using your X25519 private key. 
+            The plaintext body never left your browser's memory.
+          </p>
+        </div>
+      </div>
+    } @else {
+      <div class="error-state">
+        <p>Could not retrieve message from the vault.</p>
+        <button routerLink="/inbox">Return to Inbox</button>
+      </div>
+    }
+  </div>
+</div>

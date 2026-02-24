@@ -2,30 +2,50 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
-// The "Encrypted Envelope" interface (matches your Java Record)
+/**
+ * The Encrypted Envelope matching the backend's MessageRequest record.
+ */
 export interface MessageRequest {
-  recipient: string;
-  threadId?: string;
-  subject: string;
-  encryptedBody: string;
-  messageKey: string;
-  senderPublicKey: string;
-  senderBlindToken: string;
+  recipient: string;        // The recipient's vault address
+  threadId?: string;       // Optional UUID for threading
+  subject: string;         // Cleartext metadata (reference)
+  
+  // Security Payloads (Base64)
+  encryptedBody: string;    // Body ciphertext (AES-GCM)
+  messageKey: string;       // The AES body key, wrapped with ECDH shared secret
+  senderPublicKey: string;  // Ephemeral X25519 public key used for ECDH
+  
+  // Zero-Knowledge Identity
+  senderBlindToken: string; // HMAC-SHA256(sender) used for blind search
+  encryptedSender: string;  // Sender's address encrypted for the recipient
+  
+  // Privacy Controls
+  searchTokens: string[];   // HMAC tokens for keyword search
+  sealed: boolean;         // If true, message is excluded from search/inbox indexes
 }
 
-// The Summary interface (matches your Java MessageSummary)
+// The "Encrypted Envelope" interface (matches your Java Record)
 export interface MessageSummary {
   id: string;
+  threadId: string; // Required for partition key
   sender: string;
   subject: string;
   timestamp: number;
 }
 
-@Injectable({
-  providedIn: 'root'
-})
-export class MessageService {
+export interface MessageDetail {
+  id: string;
+  threadId: string;
+  encryptedSender: string;
+  subject: string;
+  encryptedBody: string;
+  messageKey: string;
+  senderPublicKey: string;
+}
 
+@Injectable({ providedIn: 'root' })
+export class MessageService {
+  
   private apiUrl = '/api/messages';
 
   constructor(private http: HttpClient) { }
@@ -35,6 +55,10 @@ export class MessageService {
    */
   getInbox(recipient: string): Observable<MessageSummary[]> {
     return this.http.get<MessageSummary[]>(`${this.apiUrl}/${recipient}`);
+  }
+
+  getMessage(recipient: string, threadId: string, id: string): Observable<MessageDetail> {
+    return this.http.get<MessageDetail>(`${this.apiUrl}/${recipient}/${threadId}/${id}`);
   }
 
   /**

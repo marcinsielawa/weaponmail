@@ -1,0 +1,65 @@
+<div class="auth-container">
+  <div class="auth-card">
+    <div class="brand">
+      <h1>⚔️ WeaponMail</h1>
+      <p class="tagline">Zero-Knowledge Encrypted Mail</p>
+    </div>
+
+    @if (step() === 'decrypting') {
+      <div class="generating-state">
+        <div class="spinner"></div>
+        <h3>Unlocking your Vault...</h3>
+        <p>Deriving master key and decrypting your private keys locally.</p>
+      </div>
+    } @else if (step() === 'done') {
+      <div class="success-state">
+        <div class="checkmark">✓</div>
+        <h3>Access Granted</h3>
+        <p>Redirecting to your inbox...</p>
+      </div>
+    } @else {
+      <form (submit)="submit(); $event.preventDefault()" class="auth-form">
+        <h2>Login to your Account</h2>
+
+        @if (error()) {
+          <div class="error-banner">
+            {{ error() }}
+          </div>
+        }
+
+        <div class="form-group">
+          <label>Username</label>
+          <input 
+            type="text" 
+            [ngModel]="username()" 
+            (ngModelChange)="username.set($event)"
+            name="username" 
+            placeholder="e.g. sielawa"
+            required
+            autocomplete="username">
+        </div>
+
+        <div class="form-group">
+          <label>Password</label>
+          <input 
+            type="password" 
+            [ngModel]="password()" 
+            (ngModelChange)="password.set($event)"
+            name="password" 
+            placeholder="••••••••••••"
+            required
+            autocomplete="current-password">
+          <div class="hint">Your password is required to decrypt your local vault.</div>
+        </div>
+
+        <button type="submit" [disabled]="loading() || !username() || !password()">
+          {{ loading() ? 'Authenticating...' : 'Sign In' }}
+        </button>
+
+        <div class="auth-footer">
+          Don't have an account? <a routerLink="/signup">Create a vault</a>
+        </div>
+      </form>
+    }
+  </div>
+</div>

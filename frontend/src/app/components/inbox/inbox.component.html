@@ -15,13 +15,15 @@
     }
 
     @for (msg of messages(); track msg.id) {
-      <div class="message-row">
-        <div class="msg-sender">{{ msg.sender }}</div>
+      <div class="message-row" (click)="openMessage(msg)">
+        <div class="msg-sender">Vault: {{ msg.sender }}</div>
         <div class="msg-subject">{{ msg.subject }}</div>
         <div class="msg-date">{{ msg.timestamp | date:'short' }}</div>
       </div>
     }
   </div>
 </div>
+
+
 
 
