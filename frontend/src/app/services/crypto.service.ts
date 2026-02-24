@@ -54,7 +54,7 @@ export class CryptoService {
       'raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']
     );
     return window.crypto.subtle.deriveKey(
-      { name: 'PBKDF2', salt, iterations: 600_000, hash: 'SHA-256' },
+      { name: 'PBKDF2', salt: salt as BufferSource, iterations: 600_000, hash: 'SHA-256' },
       baseKey,
       { name: 'AES-GCM', length: 256 },
       false,
@@ -94,7 +94,7 @@ export class CryptoService {
   /** Encrypts private key bytes with the master key (AES-GCM). Returns Base64. */
   async encryptWithMasterKey(data: Uint8Array, masterKey: CryptoKey): Promise<string> {
     const iv = window.crypto.getRandomValues(new Uint8Array(12));
-    const ciphertext = await window.crypto.subtle.encrypt({ name: 'AES-GCM', iv }, masterKey, data);
+    const ciphertext = await window.crypto.subtle.encrypt({ name: 'AES-GCM', iv }, masterKey, data as BufferSource);
     const combined = new Uint8Array(12 + ciphertext.byteLength);
     combined.set(iv);
     combined.set(new Uint8Array(ciphertext), 12);
@@ -133,7 +133,7 @@ export class CryptoService {
   }> {
     // 1. Import recipient public key
     const recipientKey = await window.crypto.subtle.importKey(
-      'raw', recipientPublicKeyBytes, { name: 'ECDH', namedCurve: 'P-256' }, false, []
+      'raw', recipientPublicKeyBytes as BufferSource, { name: 'ECDH', namedCurve: 'P-256' }, false, []
     );
 
     // 2. Generate ephemeral keypair for this message (perfect forward secrecy)
@@ -191,11 +191,11 @@ export class CryptoService {
     recipientPrivateKeyBytes: Uint8Array
   ): Promise<string> {
     const recipientPrivKey = await window.crypto.subtle.importKey(
-      'pkcs8', recipientPrivateKeyBytes,
+      'pkcs8', recipientPrivateKeyBytes as BufferSource,
       { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveKey', 'deriveBits']
     );
     const ephemeralPub = await window.crypto.subtle.importKey(
-      'raw', this.fromBase64(ephemeralPublicKeyBase64),
+      'raw', this.fromBase64(ephemeralPublicKeyBase64) as BufferSource,
       { name: 'ECDH', namedCurve: 'P-256' }, false, []
     );
     const sharedSecret = await window.crypto.subtle.deriveKey(
@@ -205,7 +205,7 @@ export class CryptoService {
     );
     const bodyKeyBytes = await this.decryptBytes(wrappedMessageKey, sharedSecret);
     const bodyKey = await window.crypto.subtle.importKey(
-      'raw', bodyKeyBytes, { name: 'AES-GCM', length: 256 }, false, ['decrypt']
+      'raw', bodyKeyBytes as BufferSource, { name: 'AES-GCM', length: 256 }, false, ['decrypt']
     );
     return this.decryptBody(encryptedBody, bodyKey);
   }
@@ -217,11 +217,11 @@ export class CryptoService {
     recipientPrivateKeyBytes: Uint8Array
   ): Promise<string> {
     const recipientPrivKey = await window.crypto.subtle.importKey(
-      'pkcs8', recipientPrivateKeyBytes,
+      'pkcs8', recipientPrivateKeyBytes as BufferSource,
       { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveKey', 'deriveBits']
     );
     const ephemeralPub = await window.crypto.subtle.importKey(
-      'raw', this.fromBase64(ephemeralPublicKeyBase64),
+      'raw', this.fromBase64(ephemeralPublicKeyBase64) as BufferSource,
       { name: 'ECDH', namedCurve: 'P-256' }, false, []
     );
     const sharedSecret = await window.crypto.subtle.deriveKey(
@@ -335,7 +335,7 @@ export class CryptoService {
 
   async encryptBytes(data: Uint8Array, key: CryptoKey): Promise<string> {
     const iv = window.crypto.getRandomValues(new Uint8Array(12));
-    const ciphertext = await window.crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, data);
+    const ciphertext = await window.crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, data as BufferSource);
     const combined = new Uint8Array(12 + ciphertext.byteLength);
     combined.set(iv);
     combined.set(new Uint8Array(ciphertext), 12);
