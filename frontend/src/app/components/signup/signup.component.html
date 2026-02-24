@@ -1,0 +1,89 @@
+<div class="auth-container">
+  <div class="auth-card">
+    <div class="brand">
+      <h1>⚔️ WeaponMail</h1>
+      <p class="tagline">Zero-Knowledge Encrypted Mail</p>
+    </div>
+
+    @if (step() === 'generating') {
+      <div class="generating-state">
+        <div class="spinner"></div>
+        <h3>Generating your keypair...</h3>
+        <p>Your X25519 encryption keys are being generated in your browser.<br>
+           <strong>They will never leave your device in plaintext.</strong></p>
+      </div>
+    } @else if (step() === 'done') {
+      <div class="success-state">
+        <div class="checkmark">✓</div>
+        <h3>Vault Created</h3>
+        <p>Redirecting to your inbox...</p>
+      </div>
+    } @else {
+      <form (submit)="submit(); $event.preventDefault()" class="auth-form">
+        <h2>Create your Vault</h2>
+
+        @if (error()) {
+          <div class="error-banner">{{ error() }}</div>
+        }
+
+        <div class="form-group">
+          <label for="username">Vault Address</label>
+          <input
+            id="username"
+            type="email"
+            [ngModel]="username()"
+            (ngModelChange)="username.set($event)"
+            name="username"
+            placeholder="you@weaponmail.io"
+            autocomplete="username"
+            required />
+        </div>
+
+        <div class="form-group">
+          <label for="password">Master Password</label>
+          <input
+            id="password"
+            type="password"
+            [ngModel]="password()"
+            (ngModelChange)="password.set($event)"
+            name="password"
+            placeholder="Minimum 12 characters"
+            autocomplete="new-password"
+            required />
+          <span class="hint">
+            This password derives your encryption key. It cannot be recovered.
+          </span>
+        </div>
+
+        <div class="form-group">
+          <label for="confirm">Confirm Password</label>
+          <input
+            id="confirm"
+            type="password"
+            [ngModel]="confirmPassword()"
+            (ngModelChange)="confirmPassword.set($event)"
+            name="confirm"
+            placeholder="Repeat your password"
+            autocomplete="new-password"
+            required />
+        </div>
+
+        <div class="zk-explainer">
+          <strong>🔐 Zero-Knowledge Guarantee</strong>
+          <ul>
+            <li>Your X25519 keypair is generated here, in your browser</li>
+            <li>Your private key is encrypted before leaving this tab</li>
+            <li>The server stores only an encrypted blob it cannot read</li>
+            <li>Your password is never transmitted</li>
+          </ul>
+        </div>
+
+        <button type="submit" [disabled]="loading()">
+          {{ loading() ? 'Creating Vault...' : 'Create Encrypted Vault' }}
+        </button>
+
+        <p class="switch-link">Already have a vault? <a routerLink="/login">Sign in</a></p>
+      </form>
+    }
+  </div>
+</div>
