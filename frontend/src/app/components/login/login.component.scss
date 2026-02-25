@@ -1,5 +1,5 @@
 /* Reusing the auth styles for consistency */
-@import '../signup/signup.component.scss';
+@use '../signup/signup.component' as signup;
 
 .auth-footer {
   text-align: center;
