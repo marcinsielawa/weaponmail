@@ -1,5 +1,7 @@
 package com.weaponmail.message;
 
+import java.util.List;
+
 /**
  * Full message detail returned when a user opens a message.
  *
@@ -11,6 +13,9 @@ package com.weaponmail.message;
  * senderPublicKey — the ephemeral X25519 public key used by the sender.
  *                   The client needs it to re-derive the ECDH shared secret
  *                   and unwrap both the messageKey and the encryptedSender.
+ *
+ * attachments     — E2EE attachment blobs in the format {@code <filename>:<base64-ciphertext>}.
+ *                   Decrypted client-side using the same ECDH-derived AES-GCM key.
  */
 public record MessageDetail(
         String id,
@@ -20,5 +25,6 @@ public record MessageDetail(
         String encryptedBody,
         String messageKey,
         String senderPublicKey,
-        boolean sealed
+        boolean sealed,
+        List<String> attachments  // E2EE attachment blobs
 ) {}

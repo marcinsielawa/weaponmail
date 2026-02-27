@@ -1,5 +1,6 @@
 package com.weaponmail.message;
 
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -10,6 +11,14 @@ import com.datastax.oss.driver.api.core.uuid.Uuids;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+/**
+ * Business logic for the WeaponMail message vault.
+ *
+ * <p><strong>Sealed message contract:</strong> Sealed messages are stored but excluded from all
+ * listing, indexing, and search endpoints. The only way to access a sealed message is via direct
+ * ID lookup ({@link #getMessageById}). The server enforces this invariant — the client cannot
+ * bypass it by guessing a search token.
+ */
 @Service
 public class MessageService {
 
@@ -20,10 +29,7 @@ public class MessageService {
     }
 
     public Flux<MessageSummary> getMessages(String recipient) {
-        return repository.findAllByKeyRecipient(recipient)
-                // Sealed messages are excluded from the general inbox listing.
-                // They are only accessible via direct getMessageById lookup.
-                .filter(entity -> !entity.isSealed())
+        return searchableMessages(recipient)
                 .map(this::mapToSummary);
     }
 
@@ -43,6 +49,7 @@ public class MessageService {
         entity.setEncryptedSender(request.encryptedSender());
         entity.setSearchTokens(request.searchTokens() != null ? request.searchTokens() : Set.of());
         entity.setSealed(request.sealed());
+        entity.setAttachments(request.attachments() != null ? request.attachments() : List.of());
 
         return repository.save(entity).then();
     }
@@ -54,6 +61,28 @@ public class MessageService {
      */
     public Flux<MessageSummary> searchBySender(String recipient, String token) {
         return repository.findAllByKeyRecipientAndSenderBlindToken(recipient, token)
+                .filter(entity -> !entity.isSealed())
+                .map(this::mapToSummary);
+    }
+
+    /**
+     * Blind search by any search token (sender, subject keyword, or body keyword).
+     * Searches the {@code searchTokens} set stored on each message, which contains
+     * HMAC tokens for subject words and body keywords in addition to the sender token.
+     * Sealed messages are excluded.
+     */
+    public Flux<MessageSummary> searchByToken(String recipient, String token) {
+        return searchableMessages(recipient)
+                .filter(entity -> entity.getSearchTokens() != null
+                        && entity.getSearchTokens().contains(token))
+                .map(this::mapToSummary);
+    }
+
+    /**
+     * Returns all messages in a thread for a recipient, excluding sealed messages.
+     */
+    public Flux<MessageSummary> getThread(String recipient, String threadId) {
+        return repository.findAllByKeyRecipientAndKeyThreadId(recipient, UUID.fromString(threadId))
                 .filter(entity -> !entity.isSealed())
                 .map(this::mapToSummary);
     }
@@ -98,7 +127,18 @@ public class MessageService {
                         entity.getEncryptedBody(),
                         entity.getMessageKey(),
                         entity.getSenderPublicKey(),
-                        entity.isSealed()
+                        entity.isSealed(),
+                        entity.getAttachments() != null ? entity.getAttachments() : List.of()
                 ));
+    }
+
+    /**
+     * Returns all non-sealed messages for a recipient.
+     * Central helper enforcing the sealed-message exclusion invariant for all
+     * listing and search paths. Only {@link #getMessageById} bypasses this filter.
+     */
+    private Flux<MessageEntity> searchableMessages(String recipient) {
+        return repository.findAllByKeyRecipient(recipient)
+                .filter(entity -> !entity.isSealed());
     }
 }

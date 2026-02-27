@@ -1,4 +1,5 @@
 import { inject, Injectable } from '@angular/core';
+import { x25519 } from '@noble/curves/ed25519.js';
 import { KDF_PARAMS, KDF_STRATEGY, KdfParams, KdfStrategy } from '../crypto/kdf-strategy';
 
 @Injectable({ providedIn: 'root' })
@@ -9,18 +10,10 @@ export class CryptoService {
 
   // ─── Key Generation ──────────────────────────────────────────────────────────
 
+  /** Generates a real X25519 (Curve25519) key pair using @noble/curves. */
   async generateX25519KeyPair(): Promise<{ publicKeyBytes: Uint8Array; privateKeyBytes: Uint8Array }> {
-    const keyPair = await window.crypto.subtle.generateKey(
-      { name: 'ECDH', namedCurve: 'P-256' },
-      true,
-      ['deriveKey', 'deriveBits']
-    );
-    const publicKeyBytes = new Uint8Array(
-      await window.crypto.subtle.exportKey('raw', keyPair.publicKey)
-    );
-    const privateKeyBytes = new Uint8Array(
-      await window.crypto.subtle.exportKey('pkcs8', keyPair.privateKey)
-    );
+    const privateKeyBytes = x25519.utils.randomSecretKey();
+    const publicKeyBytes = x25519.getPublicKey(privateKeyBytes);
     return { publicKeyBytes, privateKeyBytes };
   }
 
@@ -36,8 +29,14 @@ export class CryptoService {
 
   /**
    * Derives a dedicated HMAC key for search tokens via PBKDF2.
-   * Search tokens don't protect private key material so memory-hardness
-   * isn't needed here — keeping it on WebCrypto avoids unnecessary WASM cost.
+   *
+   * Intentionally uses PBKDF2 (not the injected KDF strategy) because:
+   * 1. Search tokens index keywords, not private key material — the attacker gain
+   *    from cracking a search token is knowing a keyword, not the private key.
+   * 2. PBKDF2 runs entirely in WebCrypto (no WASM), keeping the hot path fast when
+   *    generating many search tokens during compose.
+   * 3. The salt is personalised with "-search" to ensure domain separation from the
+   *    master key even if the same password is used.
    */
   async deriveSearchHmacKey(password: string, salt: Uint8Array): Promise<CryptoKey> {
     const enc = new TextEncoder();
@@ -81,7 +80,7 @@ export class CryptoService {
     return new Uint8Array(plain);
   }
 
-  // ─── Message Encryption (ECDH + AES-GCM) ────────────────────────────────────
+  // ─── Message Encryption (X25519 ECDH + HKDF + AES-GCM) ──────────────────────
 
   async encryptMessage(
     plainBody: string,
@@ -93,28 +92,15 @@ export class CryptoService {
     ephemeralPublicKey: string;
     encryptedSender: string;
   }> {
-    const recipientKey = await window.crypto.subtle.importKey(
-      'raw',
-      this.buf(recipientPublicKeyBytes),  // ← fixed
-      { name: 'ECDH', namedCurve: 'P-256' },
-      false,
-      []
-    );
+    // Generate ephemeral X25519 key pair for forward secrecy
+    const ephemeralPrivateKey = x25519.utils.randomSecretKey();
+    const ephemeralPublicKeyBytes = x25519.getPublicKey(ephemeralPrivateKey);
 
-    const ephemeral = await window.crypto.subtle.generateKey(
-      { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey', 'deriveBits']
-    );
-    const ephemeralPublicKeyBytes = new Uint8Array(
-      await window.crypto.subtle.exportKey('raw', ephemeral.publicKey)
-    );
+    // X25519 ECDH: derive shared secret with recipient's long-term public key
+    const sharedSecret = x25519.getSharedSecret(ephemeralPrivateKey, recipientPublicKeyBytes);
 
-    const sharedSecret = await window.crypto.subtle.deriveKey(
-      { name: 'ECDH', public: recipientKey },
-      ephemeral.privateKey,
-      { name: 'AES-GCM', length: 256 },
-      true,
-      ['encrypt', 'decrypt']
-    );
+    // HKDF-SHA256: derive AES-GCM key from the shared secret
+    const sharedKey = await this.deriveAesKeyFromSharedSecret(sharedSecret);
 
     const bodyKey = await window.crypto.subtle.generateKey(
       { name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']
@@ -122,9 +108,9 @@ export class CryptoService {
 
     const encryptedBody   = await this.encryptBody(plainBody, bodyKey);
     const bodyKeyBytes    = new Uint8Array(await window.crypto.subtle.exportKey('raw', bodyKey));
-    const messageKey      = await this.encryptBytes(bodyKeyBytes, sharedSecret);
+    const messageKey      = await this.encryptBytes(bodyKeyBytes, sharedKey);
     const encryptedSender = await this.encryptBytes(
-      new TextEncoder().encode(senderEmail), sharedSecret
+      new TextEncoder().encode(senderEmail), sharedKey
     );
 
     return {
@@ -141,31 +127,18 @@ export class CryptoService {
     ephemeralPublicKeyBase64: string,
     recipientPrivateKeyBytes: Uint8Array
   ): Promise<string> {
-    const recipientPrivKey = await window.crypto.subtle.importKey(
-      'pkcs8',
-      this.buf(recipientPrivateKeyBytes),  // ← fixed
-      { name: 'ECDH', namedCurve: 'P-256' },
-      false,
-      ['deriveKey', 'deriveBits']
-    );
-    const ephemeralPub = await window.crypto.subtle.importKey(
-      'raw',
-      this.buf(this.fromBase64(ephemeralPublicKeyBase64)),  // ← fixed
-      { name: 'ECDH', namedCurve: 'P-256' },
-      false,
-      []
-    );
-    const sharedSecret = await window.crypto.subtle.deriveKey(
-      { name: 'ECDH', public: ephemeralPub },
-      recipientPrivKey,
-      { name: 'AES-GCM', length: 256 },
-      true,
-      ['encrypt', 'decrypt']
-    );
-    const bodyKeyBytes = await this.decryptBytes(wrappedMessageKey, sharedSecret);
+    const ephemeralPublicKeyBytes = this.fromBase64(ephemeralPublicKeyBase64);
+
+    // X25519 ECDH: derive shared secret using recipient's private key + ephemeral public key
+    const sharedSecret = x25519.getSharedSecret(recipientPrivateKeyBytes, ephemeralPublicKeyBytes);
+
+    // HKDF-SHA256: derive AES-GCM key from the shared secret
+    const sharedKey = await this.deriveAesKeyFromSharedSecret(sharedSecret);
+
+    const bodyKeyBytes = await this.decryptBytes(wrappedMessageKey, sharedKey);
     const bodyKey = await window.crypto.subtle.importKey(
       'raw',
-      this.buf(bodyKeyBytes),  // ← fixed
+      this.buf(bodyKeyBytes),
       { name: 'AES-GCM', length: 256 },
       false,
       ['decrypt']
@@ -178,29 +151,40 @@ export class CryptoService {
     ephemeralPublicKeyBase64: string,
     recipientPrivateKeyBytes: Uint8Array
   ): Promise<string> {
-    const recipientPrivKey = await window.crypto.subtle.importKey(
-      'pkcs8',
-      this.buf(recipientPrivateKeyBytes),  // ← fixed
-      { name: 'ECDH', namedCurve: 'P-256' },
-      false,
-      ['deriveKey', 'deriveBits']
+    const ephemeralPublicKeyBytes = this.fromBase64(ephemeralPublicKeyBase64);
+
+    // X25519 ECDH: derive shared secret using recipient's private key + ephemeral public key
+    const sharedSecret = x25519.getSharedSecret(recipientPrivateKeyBytes, ephemeralPublicKeyBytes);
+
+    // HKDF-SHA256: derive AES-GCM key from the shared secret
+    const sharedKey = await this.deriveAesKeyFromSharedSecret(sharedSecret);
+
+    const senderBytes = await this.decryptBytes(encryptedSender, sharedKey);
+    return new TextDecoder().decode(senderBytes);
+  }
+
+  /**
+   * Derives an AES-256-GCM key from an X25519 shared secret via HKDF-SHA256.
+   * Using HKDF adds domain separation (via the "weaponmail-v1" info string) and
+   * ensures the AES key material is uniformly distributed even if the DH output
+   * has bias near the group identity element.
+   */
+  private async deriveAesKeyFromSharedSecret(sharedSecret: Uint8Array): Promise<CryptoKey> {
+    const hkdfKey = await window.crypto.subtle.importKey(
+      'raw', this.buf(sharedSecret), 'HKDF', false, ['deriveKey']
     );
-    const ephemeralPub = await window.crypto.subtle.importKey(
-      'raw',
-      this.buf(this.fromBase64(ephemeralPublicKeyBase64)),  // ← fixed
-      { name: 'ECDH', namedCurve: 'P-256' },
-      false,
-      []
-    );
-    const sharedSecret = await window.crypto.subtle.deriveKey(
-      { name: 'ECDH', public: ephemeralPub },
-      recipientPrivKey,
+    return window.crypto.subtle.deriveKey(
+      {
+        name: 'HKDF',
+        hash: 'SHA-256',
+        salt: new Uint8Array(32),
+        info: new TextEncoder().encode('weaponmail-v1'),
+      },
+      hkdfKey,
       { name: 'AES-GCM', length: 256 },
       true,
       ['encrypt', 'decrypt']
     );
-    const senderBytes = await this.decryptBytes(encryptedSender, sharedSecret);
-    return new TextDecoder().decode(senderBytes);
   }
 
   // ─── Blind Tokens ─────────────────────────────────────────────────────────────
@@ -228,6 +212,22 @@ export class CryptoService {
       tokens.push(this.toBase64(new Uint8Array(sig)));
     }
     return tokens;
+  }
+
+  /**
+   * Generates HMAC blind-search tokens from subject words only.
+   * Use this when you want to index subject keywords independently
+   * (e.g. to merge with body tokens before sending to the server).
+   */
+  async generateSubjectTokens(subject: string, searchHmacKey: CryptoKey): Promise<string[]> {
+    const stopWords = new Set(['the','a','an','is','in','on','at','to','and','or','of','for']);
+    const words = [...new Set(
+      subject.toLowerCase()
+        .replace(/[^a-z0-9\s]/g, '')
+        .split(/\s+/)
+        .filter(w => w.length > 2 && !stopWords.has(w))
+    )];
+    return this.generateSearchTokens(words, searchHmacKey);
   }
 
   extractKeywords(subject: string, body: string): string[] {

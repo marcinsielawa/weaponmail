@@ -22,6 +22,8 @@ export interface MessageRequest {
   // Privacy Controls
   searchTokens: string[];   // HMAC tokens for keyword search
   sealed: boolean;         // If true, message is excluded from search/inbox indexes
+  /** E2EE attachment blobs in the format "<filename>:<base64-ciphertext>". */
+  attachments?: string[];
 }
 
 // The "Encrypted Envelope" interface (matches your Java Record)
@@ -41,6 +43,9 @@ export interface MessageDetail {
   encryptedBody: string;
   messageKey: string;
   senderPublicKey: string;
+  sealed: boolean;
+  /** E2EE attachment blobs in the format "<filename>:<base64-ciphertext>". */
+  attachments: string[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -73,5 +78,20 @@ export class MessageService {
    */
   searchBySender(recipient: string, token: string): Observable<MessageSummary[]> {
     return this.http.get<MessageSummary[]>(`${this.apiUrl}/${recipient}/search/${token}`);
+  }
+
+  /**
+   * SEARCH: Find messages by any blind token (sender, subject keyword, or body keyword).
+   * Searches the searchTokens set stored on each message.
+   */
+  searchByToken(recipient: string, token: string): Observable<MessageSummary[]> {
+    return this.http.get<MessageSummary[]>(`${this.apiUrl}/${recipient}/search/token/${token}`);
+  }
+
+  /**
+   * THREAD: Get all messages in a conversation thread.
+   */
+  getThread(recipient: string, threadId: string): Observable<MessageSummary[]> {
+    return this.http.get<MessageSummary[]>(`${this.apiUrl}/${recipient}/thread/${threadId}`);
   }
 }

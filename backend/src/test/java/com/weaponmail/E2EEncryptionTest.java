@@ -102,7 +102,8 @@ public class E2EEncryptionTest {
                 "BLIND-HASH-TOKEN-XYZ",         // senderBlindToken
                 "ENCRYPTED-SENDER-PLACEHOLDER", // encryptedSender (not exercised here)
                 Set.of(),                       // searchTokens (empty for this test)
-                false                           // sealed
+                false,                          // sealed
+                java.util.List.of()             // attachments (empty for this test)
         );
 
         // Build the entity that the mock repository will return on read-back.
