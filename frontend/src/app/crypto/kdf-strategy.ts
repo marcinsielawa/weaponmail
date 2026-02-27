@@ -1,8 +1,8 @@
 import { InjectionToken } from '@angular/core';
 
 /**
- * Canonical parameters for Argon2id (RFC 9106 recommended minimums for
- * interactive logins: t=1, m=64MiB, p=4).
+ * Canonical parameters for Argon2id (RFC 9106 recommended parameters for
+ * interactive logins: t=2, m=64MiB, p=1).
  * PBKDF2 uses iterations only; the other fields are ignored by that strategy.
  */
 export interface KdfParams {
@@ -34,8 +34,8 @@ export const KDF_PARAMS = new InjectionToken<KdfParams>('KDF_PARAMS');
 
 /** Sensible defaults — works for both strategies. */
 export const DEFAULT_KDF_PARAMS: KdfParams = {
-  timeCost:    1,        // Argon2id: 1 pass; PBKDF2: ignored (uses own iterations const)
+  timeCost:    2,        // Argon2id: 2 passes (RFC 9106 interactive); PBKDF2: ignored (uses own iterations const)
   memoryCost:  65_536,   // Argon2id: 64 MiB
-  parallelism: 4,        // Argon2id: 4 lanes
+  parallelism: 1,        // Argon2id: 1 lane (RFC 9106 interactive)
   keyLength:   32,       // 256-bit AES key
 };

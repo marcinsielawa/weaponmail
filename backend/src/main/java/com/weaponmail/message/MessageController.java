@@ -48,4 +48,25 @@ public class MessageController {
         return messageService.searchBySender(recipient, token);
     }
 
+    /**
+     * SEARCH: Find messages by any blind token (sender, subject keyword, or body keyword).
+     * Searches the searchTokens set — requires a secondary index on search_tokens in ScyllaDB.
+     */
+    @GetMapping("/{recipient}/search/token/{token}")
+    public Flux<MessageSummary> searchByToken(
+            @PathVariable String recipient,
+            @PathVariable String token) {
+        return messageService.searchByToken(recipient, token);
+    }
+
+    /**
+     * THREAD: Get all messages in a conversation thread.
+     */
+    @GetMapping("/{recipient}/thread/{threadId}")
+    public Flux<MessageSummary> getThread(
+            @PathVariable String recipient,
+            @PathVariable String threadId) {
+        return messageService.getThread(recipient, threadId);
+    }
+
 }

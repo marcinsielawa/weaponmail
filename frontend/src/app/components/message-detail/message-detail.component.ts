@@ -1,6 +1,6 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { MessageService, MessageDetail } from '../../services/message.service';
 import { CryptoService } from '../../services/crypto.service';
 import { AuthService } from '../../services/auth.service';
@@ -22,7 +22,8 @@ export class MessageDetailComponent implements OnInit {
     private route: ActivatedRoute,
     private messageService: MessageService,
     private crypto: CryptoService,
-    private auth: AuthService
+    private auth: AuthService,
+    private router: Router
   ) {}
 
   async ngOnInit() {
@@ -65,5 +66,29 @@ export class MessageDetailComponent implements OnInit {
       console.error('Decryption failed. Vault key may be incorrect.', e);
       this.decryptedBody.set('[Error: Could not decrypt message contents]');
     }
+  }
+
+  reply() {
+    const msg = this.message();
+    const params = this.route.snapshot.params;
+    if (!msg) return;
+    this.router.navigate([
+      '/compose/reply',
+      params['recipient'],
+      msg.threadId,
+      msg.id
+    ]);
+  }
+
+  forward() {
+    const msg = this.message();
+    const params = this.route.snapshot.params;
+    if (!msg) return;
+    this.router.navigate([
+      '/compose/forward',
+      params['recipient'],
+      msg.threadId,
+      msg.id
+    ]);
   }
 }

@@ -3,18 +3,15 @@ services:
     image: scylladb/scylla:latest
     container_name: weaponmail-db
     ports:
-      - "9042:9042" # Native protocol port (for Java driver)
-      - "2042:2042" # Thrift port
+      - "9042:9042"   # CQL native protocol (Java driver)
     volumes:
       - ./data/scylla:/var/lib/scylla
     command: --smp 1 --memory 1G --overprovisioned 1 --developer-mode 1
-
-  # Optional: A web UI to look at your data
-  scylla-dashboard:
-    image: scylladb/scylla-manager:latest
-    container_name: weaponmail-db-manager
-    depends_on:
-      - scylladb
+    healthcheck:
+      test: ["CMD-SHELL", "cqlsh -e 'describe cluster' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   backend:
     build: ./backend
@@ -22,7 +19,8 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      - scylladb
+      scylladb:
+        condition: service_healthy
     environment:
       SPRING_CASSANDRA_CONTACT_POINTS: scylladb
       SPRING_CASSANDRA_PORT: 9042

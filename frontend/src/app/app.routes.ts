@@ -24,6 +24,16 @@ export const routes: Routes = [
     canActivate: [authGuard] 
   },
   { 
+    path: 'compose/reply/:recipient/:threadId/:originalId', 
+    component: ComposeComponent, 
+    canActivate: [authGuard] 
+  },
+  { 
+    path: 'compose/forward/:recipient/:threadId/:originalId', 
+    component: ComposeComponent, 
+    canActivate: [authGuard] 
+  },
+  { 
     path: 'message/:recipient/:threadId/:id', 
     component: MessageDetailComponent,
     canActivate: [authGuard] 

@@ -45,6 +45,11 @@
             The plaintext body never left your browser's memory.
           </p>
         </div>
+
+        <div class="message-actions">
+          <button (click)="reply()" class="btn-reply">↩ Reply</button>
+          <button (click)="forward()" class="btn-forward">→ Forward</button>
+        </div>
       </div>
     } @else {
       <div class="error-state">

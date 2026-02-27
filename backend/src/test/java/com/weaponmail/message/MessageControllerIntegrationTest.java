@@ -54,6 +54,7 @@ class MessageControllerIntegrationTest {
         entity.setEncryptedSender("enc-sender-base64");
         entity.setSearchTokens(Set.of("token1", "token2"));
         entity.setSealed(sealed);
+        entity.setAttachments(java.util.List.of()); // NEW
         return entity;
     }
 
@@ -68,7 +69,8 @@ class MessageControllerIntegrationTest {
                 "blind-token-abc",
                 "enc-sender-base64",
                 Set.of("token1", "token2"),
-                sealed
+                sealed,
+                java.util.List.of() // NEW
         );
     }
 

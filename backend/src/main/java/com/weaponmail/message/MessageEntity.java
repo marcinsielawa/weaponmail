@@ -3,6 +3,7 @@ package com.weaponmail.message;
 import org.springframework.data.cassandra.core.mapping.Column;
 import org.springframework.data.cassandra.core.mapping.PrimaryKey;
 import org.springframework.data.cassandra.core.mapping.Table;
+import java.util.List;
 import java.util.Set;
 
 @Table("messages")
@@ -43,6 +44,14 @@ public class MessageEntity {
     private Set<String> searchTokens;
 
     /**
+     * E2EE attachment blobs, encrypted client-side with the same ECDH-derived AES-GCM key
+     * as the message body. Each entry is formatted as {@code <filename>:<base64-ciphertext>}.
+     * The server stores and returns these as opaque strings.
+     */
+    @Column("attachments")
+    private List<String> attachments;
+
+    /**
      * Sealed messages are excluded from search, blind-token lookups,
      * and the general inbox listing. Only accessible by direct ID lookup.
      * The sender can toggle this per-message in the compose UI.
@@ -69,6 +78,8 @@ public class MessageEntity {
     public void setEncryptedSender(String encryptedSender) { this.encryptedSender = encryptedSender; }
     public Set<String> getSearchTokens() { return searchTokens; }
     public void setSearchTokens(Set<String> searchTokens) { this.searchTokens = searchTokens; }
+    public List<String> getAttachments() { return attachments; }
+    public void setAttachments(List<String> attachments) { this.attachments = attachments; }
     public boolean isSealed() { return sealed; }
     public void setSealed(boolean sealed) { this.sealed = sealed; }
 }
