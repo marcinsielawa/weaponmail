@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: scylladb
+  labels:
+    app: scylladb
+spec:
+  serviceName: scylladb
+  replicas: 1
+  selector:
+    matchLabels:
+      app: scylladb
+  template:
+    metadata:
+      labels:
+        app: scylladb
+    spec:
+      containers:
+        - name: scylladb
+          image: scylladb/scylla:latest
+          args:
+            - --smp
+            - "1"
+            - --memory
+            - 1G
+            - --overprovisioned
+            - "1"
+            - --developer-mode
+            - "1"
+          ports:
+            - containerPort: 9042
+          volumeMounts:
+            - name: scylla-data
+              mountPath: /var/lib/scylla
+  volumeClaimTemplates:
+    - metadata:
+        name: scylla-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: scylladb
+spec:
+  selector:
+    app: scylladb
+  ports:
+    - port: 9042
+      targetPort: 9042
+  clusterIP: None
