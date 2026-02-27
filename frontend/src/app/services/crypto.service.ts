@@ -13,7 +13,7 @@ export class CryptoService {
   /** Generates a real X25519 (Curve25519) key pair using @noble/curves. */
   async generateX25519KeyPair(): Promise<{ publicKeyBytes: Uint8Array; privateKeyBytes: Uint8Array }> {
     const privateKeyBytes = x25519.utils.randomSecretKey();
-    const publicKeyBytes = x25519.getPublicKey(privateKeyBytes);
+    const publicKeyBytes  = x25519.getPublicKey(privateKeyBytes);
     return { publicKeyBytes, privateKeyBytes };
   }
 
@@ -189,11 +189,29 @@ export class CryptoService {
 
   // ─── Blind Tokens ─────────────────────────────────────────────────────────────
 
+  /**
+   * Generates a blind token for zero-knowledge sender search.
+   *
+   * Computes HMAC-SHA256(senderId.lowercase, BLIND_TOKEN_SALT) where
+   * `BLIND_TOKEN_SALT` is a fixed application-level constant (not a per-user secret).
+   *
+   * **Security implications of the hardcoded salt:**
+   * - The salt `'weaponmail-blind-token-salt-v1'` is a well-known constant — it is NOT secret.
+   * - An attacker who knows a candidate sender email can precompute its token offline and
+   *   probe the server's index. This is an accepted tradeoff: the server learns only the
+   *   HMAC, never the raw email, preserving zero-knowledge against passive observers.
+   * - Protection against enumeration relies on rate-limiting and authenticated endpoints,
+   *   not on the salt being secret.
+   * - If per-user isolation is needed in future, consider deriving the key from the
+   *   recipient's master key instead of this shared constant.
+   */
   async generateBlindToken(senderId: string): Promise<string> {
     const enc = new TextEncoder();
+    // Fixed application-level constant — see JSDoc above for security implications.
+    const BLIND_TOKEN_SALT = 'weaponmail-blind-token-salt-v1';
     const key = await window.crypto.subtle.importKey(
       'raw',
-      enc.encode('weaponmail-blind-token-salt-v1'),
+      enc.encode(BLIND_TOKEN_SALT),
       { name: 'HMAC', hash: 'SHA-256' },
       false,
       ['sign']
