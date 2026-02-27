@@ -124,9 +124,9 @@ searchToken[keyword] = HMAC-SHA256(searchHmacKey, keyword.toLowerCase().trim())
 | Tradeoff | Description |
 |---|---|
 | **Cleartext subject line** | The message subject is stored in plaintext. This is intentional for routing UX but leaks metadata. A future version may encrypt it. |
-| **P-256 vs X25519 naming** | The frontend uses P-256 (NIST) via WebCrypto, not Curve25519/X25519. WebCrypto does not natively support X25519 in all browsers. The method was named `generateX25519KeyPair()` but has been renamed to `generateECDHKeyPair()` to accurately reflect the underlying curve. Both provide ~128-bit security for ECDH. |
+| **P-256 vs X25519 naming** | The frontend uses P-256 (NIST) via WebCrypto, not Curve25519/X25519. While X25519/Ed25519 is now supported in recent browsers (Chrome 111+, Firefox 119+, Safari 17+), P-256 was chosen for broader compatibility including older browser versions still in common use. The method was named `generateX25519KeyPair()` but has been renamed to `generateECDHKeyPair()` to accurately reflect the underlying curve. Both provide ~128-bit security for ECDH. |
 | **Fixed blind token salt** | `'weaponmail-blind-token-salt-v1'` is a well-known constant. See Blind Token section above. |
-| **SHA-256 login hash** | The login hash is single-iteration SHA-256 — not memory-hard. Offline cracking of leaked hashes is feasible without additional server-side password hashing. A future version should add bcrypt/scrypt on the server side. |
+| **SHA-256 login hash ⚠️ Must Fix Before Production** | The login hash is single-iteration SHA-256 — not memory-hard. Offline cracking of leaked hashes is feasible without additional server-side password hashing. A future version should add bcrypt/scrypt on the server side. |
 | **No key rotation** | There is currently no key rotation mechanism. Compromising a user's long-term private key exposes all stored message keys (though past message bodies require the ephemeral keys which are discarded). Key rotation is a planned future improvement. |
 | **ScyllaDB search_tokens** | Full keyword-token search requires SASI indexes or a separate lookup table. The current schema uses a `message_search_index` table; SASI is not universally available. |
 
