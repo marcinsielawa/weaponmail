@@ -2,6 +2,7 @@ package com.weaponmail.account;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -23,6 +24,7 @@ import com.weaponmail.message.MessageRepository;
  * Both Cassandra repositories are mocked with @MockitoBean.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@AutoConfigureWebTestClient
 class AccountControllerIntegrationTest {
 
     @Autowired
