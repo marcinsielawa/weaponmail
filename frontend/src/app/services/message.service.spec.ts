@@ -79,6 +79,8 @@ describe('MessageService', () => {
       encryptedBody: 'enc-body',
       messageKey: 'wrapped-key',
       senderPublicKey: 'eph-pub',
+      sealed: false,
+      attachments: [],
     };
 
     service.getMessage('alice@weaponmail.io', 'thread-id-1', 'msg-id-1').subscribe((detail) => {
