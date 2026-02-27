@@ -9,7 +9,17 @@ export class CryptoService {
 
   // ─── Key Generation ──────────────────────────────────────────────────────────
 
-  async generateX25519KeyPair(): Promise<{ publicKeyBytes: Uint8Array; privateKeyBytes: Uint8Array }> {
+  /**
+   * Generates an ECDH key pair using the P-256 (secp256r1) curve via the WebCrypto API.
+   *
+   * **Note on naming:** The backend and protocol documentation refer to "X25519" (Curve25519),
+   * but the WebCrypto API does not natively support X25519/Curve25519 in all browsers.
+   * This implementation uses P-256 (NIST curve), which is universally supported by WebCrypto.
+   * P-256 provides equivalent security (128-bit) for ECDH key agreement purposes.
+   * The method was previously named `generateX25519KeyPair()` — it is renamed here to
+   * `generateECDHKeyPair()` to accurately reflect the underlying curve used.
+   */
+  async generateECDHKeyPair(): Promise<{ publicKeyBytes: Uint8Array; privateKeyBytes: Uint8Array }> {
     const keyPair = await window.crypto.subtle.generateKey(
       { name: 'ECDH', namedCurve: 'P-256' },
       true,
@@ -205,11 +215,29 @@ export class CryptoService {
 
   // ─── Blind Tokens ─────────────────────────────────────────────────────────────
 
+  /**
+   * Generates a blind token for zero-knowledge sender search.
+   *
+   * Computes HMAC-SHA256(senderId.lowercase, BLIND_TOKEN_SALT) where
+   * `BLIND_TOKEN_SALT` is a fixed application-level constant (not a per-user secret).
+   *
+   * **Security implications of the hardcoded salt:**
+   * - The salt `'weaponmail-blind-token-salt-v1'` is a well-known constant — it is NOT secret.
+   * - An attacker who knows a candidate sender email can precompute its token offline and
+   *   probe the server's index. This is an accepted tradeoff: the server learns only the
+   *   HMAC, never the raw email, preserving zero-knowledge against passive observers.
+   * - Protection against enumeration relies on rate-limiting and authenticated endpoints,
+   *   not on the salt being secret.
+   * - If per-user isolation is needed in future, consider deriving the key from the
+   *   recipient's master key instead of this shared constant.
+   */
   async generateBlindToken(senderId: string): Promise<string> {
     const enc = new TextEncoder();
+    // Fixed application-level constant — see JSDoc above for security implications.
+    const BLIND_TOKEN_SALT = 'weaponmail-blind-token-salt-v1';
     const key = await window.crypto.subtle.importKey(
       'raw',
-      enc.encode('weaponmail-blind-token-salt-v1'),
+      enc.encode(BLIND_TOKEN_SALT),
       { name: 'HMAC', hash: 'SHA-256' },
       false,
       ['sign']
