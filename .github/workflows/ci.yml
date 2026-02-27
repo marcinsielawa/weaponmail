@@ -27,7 +27,8 @@ jobs:
           restore-keys: ${{ runner.os }}-m2
 
       - name: Run backend tests
-        run: cd backend && ./mvnw test
+        working-directory: backend
+        run: mvn -B test
 
   frontend-test:
     runs-on: ubuntu-latest

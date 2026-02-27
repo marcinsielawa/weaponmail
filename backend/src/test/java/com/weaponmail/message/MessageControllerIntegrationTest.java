@@ -4,6 +4,8 @@ import com.datastax.oss.driver.api.core.uuid.Uuids;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import reactor.core.publisher.Flux;
@@ -18,6 +20,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
+import com.weaponmail.CassandraContainerInitializer;
 import com.weaponmail.account.AccountRepository;
 
 /**
@@ -28,6 +31,8 @@ import com.weaponmail.account.AccountRepository;
  * Cassandra repositories are replaced with @MockitoBean fakes so no live DB is needed.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@ActiveProfiles("test")
+@ContextConfiguration(initializers = CassandraContainerInitializer.class)
 class MessageControllerIntegrationTest {
 
     @Autowired

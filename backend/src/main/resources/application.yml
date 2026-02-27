@@ -1,9 +1,9 @@
 spring:
   cassandra:
-    keyspace-name: weaponmail
-    contact-points: 
-      - 127.0.0.1:9042
-    local-datacenter: datacenter1
+    keyspace-name: ${CASSANDRA_KEYSPACE:weaponmail}
+    contact-points:
+      - ${CASSANDRA_HOST:scylladb}:${CASSANDRA_PORT:9042}
+    local-datacenter: ${CASSANDRA_DATACENTER:datacenter1}
     schema-action: create_if_not_exists
     request:
       timeout: 10s

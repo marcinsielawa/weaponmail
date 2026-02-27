@@ -12,6 +12,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import reactor.test.StepVerifier;
@@ -44,6 +46,8 @@ import java.util.UUID;
  *   Recipient: ECDH(recipient.priv, ephemeral.pub) → same sharedSecret → AES-GCM⁻¹(messageKey)
  */
 @SpringBootTest
+@ActiveProfiles("test")
+@ContextConfiguration(initializers = CassandraContainerInitializer.class)
 public class E2EEncryptionTest {
 
     @Autowired

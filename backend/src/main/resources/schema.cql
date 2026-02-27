@@ -28,6 +28,8 @@ CREATE TABLE IF NOT EXISTS weaponmail.messages (
     -- Derived client-side using a key derived from the master key.
     -- The server stores these as opaque tokens and matches them blindly.
     search_tokens set<text>,
+    -- E2EE attachment blobs, encrypted client-side. Each entry is <filename>:<base64-ciphertext>.
+    attachments list<text>,
     -- Sealed messages are excluded from search and blind-token lookups.
     -- They can only be accessed via direct recipient+thread+id lookup.
     sealed boolean,

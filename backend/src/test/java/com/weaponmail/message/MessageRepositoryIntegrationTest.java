@@ -5,11 +5,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.CassandraContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.ContextConfiguration;
 import reactor.test.StepVerifier;
 
 import java.util.Set;
@@ -19,8 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.weaponmail.account.AccountRepository;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import com.weaponmail.CassandraContainerInitializer;
 
 /**
  * Repository integration tests using Testcontainers to spin up a real
@@ -35,27 +31,10 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
  * Disabled in environments where Docker is unavailable (CI flag SKIP_DB_TESTS).
  */
 @SpringBootTest
-@Testcontainers
+@ActiveProfiles("test")
+@ContextConfiguration(initializers = CassandraContainerInitializer.class)
 @DisabledIfEnvironmentVariable(named = "SKIP_DB_TESTS", matches = "true")
 class MessageRepositoryIntegrationTest {
-
-    @SuppressWarnings("resource")
-    @Container
-    static CassandraContainer<?> cassandra =
-            new CassandraContainer<>("cassandra:4.1")
-                    .withInitScript("schema.cql");
-
-    @MockitoBean
-    private AccountRepository accountRepository;
-
-    @DynamicPropertySource
-    static void cassandraProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.cassandra.contact-points",
-                () -> cassandra.getHost() + ":" + cassandra.getMappedPort(9042));
-        registry.add("spring.cassandra.local-datacenter", () -> "datacenter1");
-        registry.add("spring.cassandra.keyspace-name",    () -> "weaponmail");
-        registry.add("spring.cassandra.schema-action",    () -> "create_if_not_exists");
-    }
 
     @Autowired
     private MessageRepository messageRepository;

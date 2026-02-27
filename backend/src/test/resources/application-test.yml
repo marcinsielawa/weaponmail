@@ -1,0 +1,10 @@
+spring:
+  cassandra:
+    keyspace-name: weaponmail
+    local-datacenter: datacenter1
+    schema-action: create_if_not_exists
+    request:
+      timeout: 30s
+    connection:
+      connect-timeout: 30s
+      init-query-timeout: 30s
