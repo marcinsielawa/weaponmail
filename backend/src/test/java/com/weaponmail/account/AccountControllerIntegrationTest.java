@@ -8,6 +8,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import reactor.core.publisher.Mono;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -82,10 +84,10 @@ class AccountControllerIntegrationTest {
                 .expectStatus().isOk()
                 .expectBody(AuthResponse.class)
                 .value(response -> {
-                    assert response.token != null;
-                    assert response.publicKey.equals("pub-key-25519-base64");
-                    assert response.encryptedPrivateKey.equals("enc-priv-key-base64");
-                    assert response.passwordSalt.equals("argon2id-salt-base64");
+                    assertNotNull(response.token);
+                    assertEquals("pub-key-25519-base64", response.publicKey);
+                    assertEquals("enc-priv-key-base64", response.encryptedPrivateKey);
+                    assertEquals("argon2id-salt-base64", response.passwordSalt);
                 });
     }
 
@@ -122,8 +124,8 @@ class AccountControllerIntegrationTest {
                 .expectStatus().isOk()
                 .expectBody(PublicKeyResponse.class)
                 .value(response -> {
-                    assert response.username().equals("alice@weaponmail.io");
-                    assert response.publicKey().equals("pub-key-25519-base64");
+                    assertEquals("alice@weaponmail.io", response.username());
+                    assertEquals("pub-key-25519-base64", response.publicKey());
                 });
     }
 

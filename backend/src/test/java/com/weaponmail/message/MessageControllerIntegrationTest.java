@@ -12,6 +12,8 @@ import reactor.core.publisher.Mono;
 import java.util.Set;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -134,10 +136,10 @@ class MessageControllerIntegrationTest {
                 .expectStatus().isOk()
                 .expectBody(MessageDetail.class)
                 .value(detail -> {
-                    assert detail.subject().equals("Test Subject");
-                    assert detail.encryptedBody().equals("enc-body-base64");
-                    assert detail.messageKey().equals("wrapped-key-base64");
-                    assert detail.senderPublicKey().equals("ephemeral-pub-base64");
+                    assertEquals("Test Subject", detail.subject());
+                    assertEquals("enc-body-base64", detail.encryptedBody());
+                    assertEquals("wrapped-key-base64", detail.messageKey());
+                    assertEquals("ephemeral-pub-base64", detail.senderPublicKey());
                 });
     }
 
@@ -156,8 +158,8 @@ class MessageControllerIntegrationTest {
                 .expectStatus().isOk()
                 .expectBody(MessageDetail.class)
                 .value(detail -> {
-                    assert detail.sealed();
-                    assert detail.subject().equals("Test Subject");
+                    assertTrue(detail.sealed());
+                    assertEquals("Test Subject", detail.subject());
                 });
     }
 

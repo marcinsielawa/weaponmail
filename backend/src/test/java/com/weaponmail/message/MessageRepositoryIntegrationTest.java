@@ -15,6 +15,10 @@ import reactor.test.StepVerifier;
 import java.util.Set;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import com.weaponmail.account.AccountRepository;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
@@ -83,10 +87,10 @@ class MessageRepositoryIntegrationTest {
 
         StepVerifier.create(messageRepository.findById(entity.getKey()))
                 .assertNext(found -> {
-                    assert found.getSubject().equals("Integration Test Message");
-                    assert found.getEncryptedBody().equals("enc-body-base64");
-                    assert found.getSenderBlindToken().equals("blind-token-1");
-                    assert !found.isSealed();
+                    assertEquals("Integration Test Message", found.getSubject());
+                    assertEquals("enc-body-base64", found.getEncryptedBody());
+                    assertEquals("blind-token-1", found.getSenderBlindToken());
+                    assertFalse(found.isSealed());
                 })
                 .verifyComplete();
     }
@@ -114,7 +118,7 @@ class MessageRepositoryIntegrationTest {
 
         StepVerifier.create(
                 messageRepository.findAllByKeyRecipientAndSenderBlindToken(recipient, "sender-a-token"))
-                .assertNext(found -> assert found.getSenderBlindToken().equals("sender-a-token"))
+                .assertNext(found -> assertEquals("sender-a-token", found.getSenderBlindToken()))
                 .verifyComplete();
     }
 
@@ -126,8 +130,8 @@ class MessageRepositoryIntegrationTest {
 
         StepVerifier.create(messageRepository.findById(sealed.getKey()))
                 .assertNext(found -> {
-                    assert found.isSealed();
-                    assert found.getSubject().equals("Integration Test Message");
+                    assertTrue(found.isSealed());
+                    assertEquals("Integration Test Message", found.getSubject());
                 })
                 .verifyComplete();
     }
