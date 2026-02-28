@@ -15,8 +15,14 @@
     }
 
     @for (msg of messages(); track msg.id) {
-      <div class="message-row" (click)="openMessage(msg)">
-        <div class="msg-sender">Vault: {{ msg.sender }}</div>
+      <div class="message-row" (click)="openMessage(msg)" [class.sealed]="msg.sealed">
+        <div class="msg-sender">
+          @if (msg.sealed) {
+            <span class="badge-sealed">🔒 Sealed</span>
+          } @else {
+            {{ msg.decryptedSender || '🔑 Decrypting...' }}
+          }
+        </div>
         <div class="msg-subject">{{ msg.subject }}</div>
         <div class="msg-date">{{ msg.timestamp | date:'short' }}</div>
       </div>

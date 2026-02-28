@@ -11,5 +11,6 @@ public record MessageSummary(
         String encryptedSender,  // Client decrypts this — replaces hardcoded "ANONYMOUS"
         String subject,
         long timestamp,
-        boolean sealed
+        boolean sealed,
+        String senderPublicKey
 ) {}

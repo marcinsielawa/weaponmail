@@ -102,7 +102,8 @@ public class MessageService {
                 entity.getEncryptedSender(),   // was "ANONYMOUS" — client decrypts this
                 entity.getSubject(),
                 Uuids.unixTimestamp(entity.getKey().id()),
-                entity.isSealed()
+                entity.isSealed(),
+                entity.getSenderPublicKey()
         );
     }
 

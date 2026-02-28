@@ -22,17 +22,19 @@ export interface MessageRequest {
   // Privacy Controls
   searchTokens: string[];   // HMAC tokens for keyword search
   sealed: boolean;         // If true, message is excluded from search/inbox indexes
-  /** E2EE attachment blobs in the format "<filename>:<base64-ciphertext>". */
-  attachments?: string[];
 }
 
 // The "Encrypted Envelope" interface (matches your Java Record)
 export interface MessageSummary {
   id: string;
   threadId: string; // Required for partition key
-  sender: string;
+  encryptedSender: string;
   subject: string;
   timestamp: number;
+  senderPublicKey: string;
+  sealed: boolean;
+  // Local-only field for UI binding
+  decryptedSender?: string; 
 }
 
 export interface MessageDetail {
@@ -44,8 +46,6 @@ export interface MessageDetail {
   messageKey: string;
   senderPublicKey: string;
   sealed: boolean;
-  /** E2EE attachment blobs in the format "<filename>:<base64-ciphertext>". */
-  attachments: string[];
 }
 
 @Injectable({ providedIn: 'root' })
