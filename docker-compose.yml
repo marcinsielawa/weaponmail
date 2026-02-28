@@ -12,3 +12,24 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+
+  backend:
+    build: ./backend
+    container_name: weaponmail-backend
+    ports:
+      - "8080:8080"
+    depends_on:
+      scylladb:
+        condition: service_healthy
+    environment:
+      SPRING_CASSANDRA_CONTACT_POINTS: scylladb
+      SPRING_CASSANDRA_PORT: 9042
+      SPRING_CASSANDRA_LOCAL_DATACENTER: datacenter1
+
+  frontend:
+    build: ./frontend
+    container_name: weaponmail-frontend
+    ports:
+      - "4200:80"
+    depends_on:
+      - backend

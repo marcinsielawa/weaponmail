@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weaponmail-frontend
+  labels:
+    app: weaponmail-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: weaponmail-frontend
+  template:
+    metadata:
+      labels:
+        app: weaponmail-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: weaponmail-frontend:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: weaponmail-frontend
+spec:
+  selector:
+    app: weaponmail-frontend
+  ports:
+    - port: 4200
+      targetPort: 80
+  type: NodePort

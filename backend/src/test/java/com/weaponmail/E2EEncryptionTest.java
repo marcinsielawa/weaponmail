@@ -93,7 +93,7 @@ public class E2EEncryptionTest {
         String ephemeralPublicKeyBase64 = CryptoTestUtils.encodePublicKey(ephPub);
 
         // ── 3. SERVER: Build and "store" the message ───────────────────────────
-        // Construct MessageRequest with the FULL updated signature (10 fields).
+        // Construct MessageRequest with the FULL updated signature (11 fields).
         MessageRequest request = new MessageRequest(
                 targetEmail,
                 null,                           // threadId — null for new thread
@@ -102,13 +102,12 @@ public class E2EEncryptionTest {
                 wrappedKey,
                 ephemeralPublicKeyBase64,
                 "BLIND-HASH-TOKEN-XYZ",         // senderBlindToken
-                "ENCRYPTED-SENDER-PLACEHOLDER", // encryptedSender (not exercised here)
-                Set.of(),                       // searchTokens (empty for this test)
+                "ENCRYPTED-SENDER-PLACEHOLDER", // encryptedSender
+                Set.of(),                       // searchTokens
                 false                           // sealed
         );
 
         // Build the entity that the mock repository will return on read-back.
-        // This simulates a Cassandra round-trip without touching a real DB.
         MessageKey key = new MessageKey(targetEmail, threadId, Uuids.timeBased());
         MessageEntity storedEntity = new MessageEntity();
         storedEntity.setKey(key);
@@ -305,21 +304,22 @@ public class E2EEncryptionTest {
         final String recipient = "search@weaponmail.io";
         final Set<String> searchTokens = Set.of("TOKEN-ALPHA", "TOKEN-BETA");
 
+        // Updated constructor with 11 arguments (added empty attachments list)
         MessageRequest request = new MessageRequest(
                 recipient,
-                null,
-                "Keyword Search Test",
-                "encrypted-body",
-                "wrapped-key",
-                "ephemeral-pub-key",
-                "blind-token",
-                "encrypted-sender",
-                searchTokens,
-                false
+                null,                           // threadId
+                "Keyword Search Test",          // subject
+                "encrypted-body",               // encryptedBody
+                "wrapped-key",                  // messageKey
+                "ephemeral-pub-key",            // senderPublicKey
+                "blind-token",                  // senderBlindToken
+                "encrypted-sender",             // encryptedSender
+                searchTokens,                   // searchTokens
+                false                           // sealed
         );
 
         // Capture the entity actually passed to repository.save(...)
-        ArgumentCaptor<MessageEntity> captor = ArgumentCaptor.forClass(MessageEntity.class);
+        org.mockito.ArgumentCaptor<MessageEntity> captor = org.mockito.ArgumentCaptor.forClass(MessageEntity.class);
         when(messageRepository.save(captor.capture())).thenReturn(
                 Mono.just(new MessageEntity())
         );

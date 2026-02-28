@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weaponmail-backend
+  labels:
+    app: weaponmail-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: weaponmail-backend
+  template:
+    metadata:
+      labels:
+        app: weaponmail-backend
+    spec:
+      containers:
+        - name: backend
+          image: weaponmail-backend:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SPRING_CASSANDRA_CONTACT_POINTS
+              value: scylladb:9042
+            - name: SPRING_CASSANDRA_LOCAL_DATACENTER
+              value: datacenter1
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: weaponmail-backend
+spec:
+  selector:
+    app: weaponmail-backend
+  ports:
+    - port: 8080
+      targetPort: 8080
+  type: ClusterIP
