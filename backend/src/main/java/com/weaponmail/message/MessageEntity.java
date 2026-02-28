@@ -47,9 +47,10 @@ public class MessageEntity {
      * E2EE attachment blobs, encrypted client-side with the same ECDH-derived AES-GCM key
      * as the message body. Each entry is formatted as {@code <filename>:<base64-ciphertext>}.
      * The server stores and returns these as opaque strings.
-     */
+     
     @Column("attachments")
     private List<String> attachments;
+    */
 
     /**
      * Sealed messages are excluded from search, blind-token lookups,
@@ -78,8 +79,8 @@ public class MessageEntity {
     public void setEncryptedSender(String encryptedSender) { this.encryptedSender = encryptedSender; }
     public Set<String> getSearchTokens() { return searchTokens; }
     public void setSearchTokens(Set<String> searchTokens) { this.searchTokens = searchTokens; }
-    public List<String> getAttachments() { return attachments; }
-    public void setAttachments(List<String> attachments) { this.attachments = attachments; }
+    //public List<String> getAttachments() { return attachments; }
+    //public void setAttachments(List<String> attachments) { this.attachments = attachments; }
     public boolean isSealed() { return sealed; }
     public void setSealed(boolean sealed) { this.sealed = sealed; }
 }

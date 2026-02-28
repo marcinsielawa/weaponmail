@@ -25,6 +25,6 @@ public record MessageDetail(
         String encryptedBody,
         String messageKey,
         String senderPublicKey,
-        boolean sealed,
-        List<String> attachments  // E2EE attachment blobs
+        boolean sealed
+        //List<String> attachments  // E2EE attachment blobs
 ) {}

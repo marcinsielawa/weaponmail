@@ -18,6 +18,7 @@ import reactor.test.StepVerifier;
 
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -103,8 +104,7 @@ public class E2EEncryptionTest {
                 "BLIND-HASH-TOKEN-XYZ",         // senderBlindToken
                 "ENCRYPTED-SENDER-PLACEHOLDER", // encryptedSender
                 Set.of(),                       // searchTokens
-                false,                          // sealed
-                java.util.List.of()             // attachments (NEW)
+                false                           // sealed
         );
 
         // Build the entity that the mock repository will return on read-back.
@@ -119,7 +119,6 @@ public class E2EEncryptionTest {
         storedEntity.setEncryptedSender(request.encryptedSender());
         storedEntity.setSearchTokens(request.searchTokens());
         storedEntity.setSealed(request.sealed());
-        storedEntity.setAttachments(request.attachments()); // Keep entity in sync
 
         // Wire mock: save returns the entity, findAll returns it, findById returns it.
         when(messageRepository.save(any(MessageEntity.class))).thenReturn(Mono.just(storedEntity));
@@ -316,8 +315,7 @@ public class E2EEncryptionTest {
                 "blind-token",                  // senderBlindToken
                 "encrypted-sender",             // encryptedSender
                 searchTokens,                   // searchTokens
-                false,                          // sealed
-                java.util.List.of()             // attachments (NEW)
+                false                           // sealed
         );
 
         // Capture the entity actually passed to repository.save(...)

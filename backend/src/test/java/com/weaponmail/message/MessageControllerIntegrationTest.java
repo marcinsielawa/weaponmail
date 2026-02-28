@@ -3,7 +3,6 @@ package com.weaponmail.message;
 import com.datastax.oss.driver.api.core.uuid.Uuids;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
@@ -29,7 +28,6 @@ import com.weaponmail.account.AccountRepository;
  * Cassandra repositories are replaced with @MockitoBean fakes so no live DB is needed.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@AutoConfigureWebTestClient
 class MessageControllerIntegrationTest {
 
     @Autowired
@@ -56,7 +54,7 @@ class MessageControllerIntegrationTest {
         entity.setEncryptedSender("enc-sender-base64");
         entity.setSearchTokens(Set.of("token1", "token2"));
         entity.setSealed(sealed);
-        entity.setAttachments(java.util.List.of()); // NEW
+        //entity.setAttachments(java.util.List.of()); // NEW
         return entity;
     }
 
@@ -71,8 +69,7 @@ class MessageControllerIntegrationTest {
                 "blind-token-abc",
                 "enc-sender-base64",
                 Set.of("token1", "token2"),
-                sealed,
-                java.util.List.of() // NEW
+                sealed
         );
     }
 

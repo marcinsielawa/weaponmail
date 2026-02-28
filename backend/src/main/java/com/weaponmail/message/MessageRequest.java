@@ -18,6 +18,5 @@ public record MessageRequest(
     String senderBlindToken,    // HMAC-SHA256(senderEmail) — blind sender search index
     String encryptedSender,     // sender email encrypted to recipient's public key — for inbox display
     Set<String> searchTokens,   // HMAC-SHA256 keyword tokens for blind search (non-sealed only)
-    boolean sealed,             // If true: excluded from search, blind token index, and inbox list
-    List<String> attachments    // E2EE attachment blobs: "<filename>:<base64-ciphertext>" per entry
+    boolean sealed             // If true: excluded from search, blind token index, and inbox list
 ) {}
