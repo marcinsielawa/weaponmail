@@ -54,7 +54,7 @@ export class AuthService {
   async signUp(username: string, password: string): Promise<void> {
     const salt = window.crypto.getRandomValues(new Uint8Array(32));
     const masterKey = await this.crypto.deriveMasterKey(password, salt);
-    const { publicKeyBytes, privateKeyBytes } = await this.crypto.generateECDHKeyPair();
+    const { publicKeyBytes, privateKeyBytes } = await this.crypto.generateX25519KeyPair();
     const encryptedPrivateKey = await this.crypto.encryptWithMasterKey(privateKeyBytes, masterKey);
     const loginHash = await this.crypto.hashForLogin(password);
     const saltBase64 = this.crypto.toBase64(salt);

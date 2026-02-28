@@ -18,6 +18,7 @@ import reactor.test.StepVerifier;
 
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -103,8 +104,7 @@ public class E2EEncryptionTest {
                 "BLIND-HASH-TOKEN-XYZ",         // senderBlindToken
                 "ENCRYPTED-SENDER-PLACEHOLDER", // encryptedSender (not exercised here)
                 Set.of(),                       // searchTokens (empty for this test)
-                false,                          // sealed
-                java.util.List.of()             // attachments (empty for this test)
+                false                           // sealed
         );
 
         // Build the entity that the mock repository will return on read-back.

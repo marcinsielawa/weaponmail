@@ -49,7 +49,7 @@ public class MessageService {
         entity.setEncryptedSender(request.encryptedSender());
         entity.setSearchTokens(request.searchTokens() != null ? request.searchTokens() : Set.of());
         entity.setSealed(request.sealed());
-        entity.setAttachments(request.attachments() != null ? request.attachments() : List.of());
+//        entity.setAttachments(request.attachments() != null ? request.attachments() : List.of());
 
         return repository.save(entity).then();
     }
@@ -127,8 +127,8 @@ public class MessageService {
                         entity.getEncryptedBody(),
                         entity.getMessageKey(),
                         entity.getSenderPublicKey(),
-                        entity.isSealed(),
-                        entity.getAttachments() != null ? entity.getAttachments() : List.of()
+                        entity.isSealed()
+                       // entity.getAttachments() != null ? entity.getAttachments() : List.of()
                 ));
     }
 
