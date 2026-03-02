@@ -57,13 +57,13 @@ public class E2EEncryptionTest {
 
     @MockitoBean
     private AccountRepository accountRepository;
-
+    
     @Test
     void shouldPerformFullE2EEFlow() throws Exception {
         final String originalMessage = "The eagle has landed in Stockholm";
         final String targetEmail     = "marcin@weaponmail.io";
         final UUID   threadId        = UUID.randomUUID();
-
+        
         // ── 1. RECIPIENT SETUP ─────────────────────────────────────────────────
         AsymmetricCipherKeyPair recipientKeys = CryptoTestUtils.generateX25519KeyPair();
         X25519PublicKeyParameters  recipientPub  = (X25519PublicKeyParameters)  recipientKeys.getPublic();
@@ -125,7 +125,7 @@ public class E2EEncryptionTest {
         when(messageRepository.save(any(MessageEntity.class))).thenReturn(Mono.just(storedEntity));
         when(messageRepository.findAllByKeyRecipient(targetEmail)).thenReturn(Flux.just(storedEntity));
         when(messageRepository.findById(any(MessageKey.class))).thenReturn(Mono.just(storedEntity));
-
+        
         // Trigger the send (saves through mock)
         service.sendMessage(request).block();
 
@@ -304,6 +304,19 @@ public class E2EEncryptionTest {
     void shouldPersistSearchTokensWithMessage() {
         final String recipient = "search@weaponmail.io";
         final Set<String> searchTokens = Set.of("TOKEN-ALPHA", "TOKEN-BETA");
+        
+        final String blindToken = "HMAC-SHA256-BLIND-TOKEN-XYZ";
+
+        MessageKey key = new MessageKey(recipient, UUID.randomUUID(), Uuids.timeBased());
+        MessageEntity entity = new MessageEntity();
+        entity.setKey(key);
+        entity.setSubject("Hidden");
+        entity.setSealed(true);
+        entity.setEncryptedBody("encrypted-body");
+        entity.setMessageKey("wrapped-key");
+        entity.setSenderPublicKey("pub-key");
+        entity.setSenderBlindToken(blindToken);
+        entity.setEncryptedSender("encrypted-sender");
 
         MessageRequest request = new MessageRequest(
                 recipient,
@@ -321,9 +334,9 @@ public class E2EEncryptionTest {
         // Capture the entity actually passed to repository.save(...)
         ArgumentCaptor<MessageEntity> captor = ArgumentCaptor.forClass(MessageEntity.class);
         when(messageRepository.save(captor.capture())).thenReturn(
-                Mono.just(new MessageEntity())
+                Mono.just(entity)
         );
-
+        
         service.sendMessage(request).block();
 
         MessageEntity saved = captor.getValue();

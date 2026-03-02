@@ -3,7 +3,7 @@ services:
     image: scylladb/scylla:latest
     container_name: weaponmail-db
     ports:
-      - "9042:9042"   # CQL native protocol (Java driver)
+      - "9042:9042"
     volumes:
       - ./data/scylla:/var/lib/scylla
     command: --smp 1 --memory 1G --overprovisioned 1 --developer-mode 1
@@ -12,3 +12,56 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+
+  kafka:
+    image: apache/kafka:3.9.0
+    container_name: weaponmail-kafka
+    ports:
+      - "9092:9092"   # Host machine / Spring Boot (running on Mac, outside Docker)
+    environment:
+      # ── KRaft Identity ─────────────────────────────────────────────
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+
+      # ✅ FIX 1: Use the container's own hostname, not localhost.
+      # In combined broker+controller mode the broker reaches the controller
+      # via this address. Docker sets the container hostname = service name.
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+
+      # ── Listeners ──────────────────────────────────────────────────
+      # PLAINTEXT      → inter-broker / other Docker containers (e.g. future services)
+      # PLAINTEXT_HOST → your Mac / Spring Boot running outside Docker
+      # CONTROLLER     → KRaft consensus (never exposed to clients)
+      KAFKA_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://kafka:9092,CONTROLLER://kafka:9093
+
+      # ✅ FIX 2: PLAINTEXT uses "kafka" (Docker DNS), PLAINTEXT_HOST uses "localhost"
+      # (the Mac's loopback after port-mapping). CONTROLLER is intentionally absent —
+      # it must NOT be advertised to clients, only listed in QUORUM_VOTERS.
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+
+      # ── Topic / Replication Defaults ───────────────────────────────
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0      # speeds up consumer group formation locally
+
+      # ✅ FIX 3: CLUSTER_ID must be exactly 22 base64url chars (16 bytes encoded).
+      # Generate a fresh one if you wipe ./data/kafka (see command below).
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+
+    volumes:
+      - ./data/kafka:/var/lib/kafka/data
+    healthcheck:
+      # ✅ FIX 4: Use kafka-broker-api-versions instead of nc.
+      # nc only checks the TCP port, not whether Kafka is actually ready to accept
+      # protocol requests. This check verifies the broker is truly operational.
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s   # give KRaft time to elect itself before health checks fire

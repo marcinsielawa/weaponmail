@@ -15,10 +15,17 @@
 	<name>message-backend</name>
 	<description>Message backend</description>
 	<url />
-	<licenses><license /></licenses>
-	<developers><developer /></developers>
+	<licenses>
+		<license />
+	</licenses>
+	<developers>
+		<developer />
+	</developers>
 	<scm>
-		<connection /><developerConnection /><tag /><url />
+		<connection />
+		<developerConnection />
+		<tag />
+		<url />
 	</scm>
 	<properties>
 		<java.version>25</java.version>
@@ -39,6 +46,11 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-cassandra-reactive</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.kafka</groupId>
+			<artifactId>spring-kafka</artifactId>
 		</dependency>
 
 		<!-- ── Test Dependencies ───────────────────────────────────── -->

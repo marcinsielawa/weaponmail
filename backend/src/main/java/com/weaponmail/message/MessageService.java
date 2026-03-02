@@ -1,12 +1,17 @@
 package com.weaponmail.message;
 
-import java.util.List;
 import java.util.Set;
 import java.util.UUID;
-
-import org.springframework.stereotype.Service;
+import java.util.concurrent.CompletableFuture;
 
 import com.datastax.oss.driver.api.core.uuid.Uuids;
+import com.weaponmail.message.event.InboxEvent;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.stereotype.Service;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -18,22 +23,120 @@ import reactor.core.publisher.Mono;
  * listing, indexing, and search endpoints. The only way to access a sealed message is via direct
  * ID lookup ({@link #getMessageById}). The server enforces this invariant — the client cannot
  * bypass it by guessing a search token.
+ *
+ * <p><strong>Kafka integration:</strong> Uses {@link KafkaTemplate} whose {@code send()} returns
+ * a {@link CompletableFuture}. Bridged to {@link Mono} via {@code Mono.fromFuture()} so the
+ * WebFlux event loop is never blocked — the actual Kafka network I/O runs on Kafka's internal
+ * sender thread. Virtual threads (Java 25 / Spring Boot 4 default) handle @KafkaListener on
+ * the consumer side in {@link com.weaponmail.stream.InboxStreamService}.
  */
 @Service
 public class MessageService {
 
-    private final MessageRepository repository;
+    private static final Logger log = LoggerFactory.getLogger(MessageService.class);
 
-    public MessageService(MessageRepository repository) {
+    private final MessageRepository repository;
+    private final KafkaTemplate<String, InboxEvent> kafkaTemplate;
+
+    @Value("${weaponmail.kafka.topics.inbox-events}")
+    private String inboxEventsTopic;
+
+    public MessageService(MessageRepository repository,
+                          KafkaTemplate<String, InboxEvent> kafkaTemplate) {
         this.repository = repository;
+        this.kafkaTemplate = kafkaTemplate;
     }
+
+    // ── Read paths — unchanged, fully reactive ──────────────────────────────
 
     public Flux<MessageSummary> getMessages(String recipient) {
         return searchableMessages(recipient)
                 .map(this::mapToSummary);
     }
 
+    public Flux<MessageSummary> searchBySender(String recipient, String token) {
+        return repository.findAllByKeyRecipientAndSenderBlindToken(recipient, token)
+                .filter(entity -> !entity.isSealed())
+                .map(this::mapToSummary);
+    }
+
+    public Flux<MessageSummary> searchByToken(String recipient, String token) {
+        return searchableMessages(recipient)
+                .filter(entity -> entity.getSearchTokens() != null
+                        && entity.getSearchTokens().contains(token))
+                .map(this::mapToSummary);
+    }
+
+    public Flux<MessageSummary> getThread(String recipient, String threadId) {
+        return repository.findAllByKeyRecipientAndKeyThreadId(recipient, UUID.fromString(threadId))
+                .filter(entity -> !entity.isSealed())
+                .map(this::mapToSummary);
+    }
+
+    public Mono<MessageDetail> getMessageById(String recipient, String threadId, String id) {
+        MessageKey key = new MessageKey(
+                recipient,
+                UUID.fromString(threadId),
+                UUID.fromString(id));
+
+        return repository.findById(key)
+                .map(entity -> new MessageDetail(
+                        entity.getKey().id().toString(),
+                        entity.getKey().threadId().toString(),
+                        entity.getEncryptedSender(),
+                        entity.getSubject(),
+                        entity.getEncryptedBody(),
+                        entity.getMessageKey(),
+                        entity.getSenderPublicKey(),
+                        entity.isSealed()));
+    }
+
+    // ── Write path — reactive Scylla + non-blocking Kafka bridge ────────────
+
+    /**
+     * Persists the encrypted envelope to ScyllaDB, then publishes an {@link InboxEvent}
+     * to Kafka — in that order, guaranteed by the reactive chain.
+     *
+     * <p>Flow:
+     * <pre>
+     *   repository.save()            — reactive, Cassandra driver I/O
+     *     .flatMap(saved -> ...)
+     *       Mono.fromFuture(          — bridges CompletableFuture → Mono
+     *         kafkaTemplate.send()    — Kafka producer I/O on its internal sender thread
+     *       )
+     * </pre>
+     *
+     * <p>The WebFlux event loop thread is never parked/blocked at any point in this chain.
+     * Kafka publishes only after ScyllaDB acknowledges — eliminating any read-before-write race
+     * for the SSE consumer on the recipient's side.
+     */
     public Mono<Void> sendMessage(MessageRequest request) {
+        MessageEntity entity = buildEntity(request);
+
+        return repository.save(entity)
+                .flatMap(saved -> {
+                    InboxEvent event = toEvent(saved);
+
+                    // KafkaTemplate.send() → CompletableFuture<SendResult>
+                    // Mono.fromFuture()    → subscribes the event loop without blocking it
+                    // The Kafka producer's internal sender thread completes the future.
+                    CompletableFuture<Void> sendFuture = kafkaTemplate
+                            .send(inboxEventsTopic, event.recipient(), event)
+                            .thenApply(_ -> null);  // SendResult → Void
+
+                    return Mono.fromFuture(sendFuture)
+                            .doOnSuccess(_ -> log.debug(
+                                    "[Kafka] Published inbox event for {} | msg={}",
+                                    event.recipient(), event.messageId()))
+                            .doOnError(ex -> log.error(
+                                    "[Kafka] Failed to publish event for {} | msg={} — {}",
+                                    event.recipient(), event.messageId(), ex.getMessage()));
+                });
+    }
+
+    // ── Private helpers ──────────────────────────────────────────────────────
+
+    private MessageEntity buildEntity(MessageRequest request) {
         MessageEntity entity = new MessageEntity();
 
         UUID threadId = (request.threadId() != null)
@@ -49,95 +152,31 @@ public class MessageService {
         entity.setEncryptedSender(request.encryptedSender());
         entity.setSearchTokens(request.searchTokens() != null ? request.searchTokens() : Set.of());
         entity.setSealed(request.sealed());
-//        entity.setAttachments(request.attachments() != null ? request.attachments() : List.of());
 
-        return repository.save(entity).then();
+        return entity;
     }
 
-    /**
-     * Blind sender search — excluded for sealed messages.
-     * The token is HMAC-SHA256(senderEmail) so the server matches
-     * it without knowing the sender's identity.
-     */
-    public Flux<MessageSummary> searchBySender(String recipient, String token) {
-        return repository.findAllByKeyRecipientAndSenderBlindToken(recipient, token)
-                .filter(entity -> !entity.isSealed())
-                .map(this::mapToSummary);
+    private InboxEvent toEvent(MessageEntity saved) {
+        return new InboxEvent(
+                saved.getKey().recipient(),
+                saved.getKey().id().toString(),
+                saved.getKey().threadId().toString(),
+                saved.getSubject(),
+                Uuids.unixTimestamp(saved.getKey().id()),
+                saved.isSealed());
     }
 
-    /**
-     * Blind search by any search token (sender, subject keyword, or body keyword).
-     * Searches the {@code searchTokens} set stored on each message, which contains
-     * HMAC tokens for subject words and body keywords in addition to the sender token.
-     * Sealed messages are excluded.
-     */
-    public Flux<MessageSummary> searchByToken(String recipient, String token) {
-        return searchableMessages(recipient)
-                .filter(entity -> entity.getSearchTokens() != null
-                        && entity.getSearchTokens().contains(token))
-                .map(this::mapToSummary);
-    }
-
-    /**
-     * Returns all messages in a thread for a recipient, excluding sealed messages.
-     */
-    public Flux<MessageSummary> getThread(String recipient, String threadId) {
-        return repository.findAllByKeyRecipientAndKeyThreadId(recipient, UUID.fromString(threadId))
-                .filter(entity -> !entity.isSealed())
-                .map(this::mapToSummary);
-    }
-
-    /**
-     * Maps a MessageEntity to an inbox summary.
-     *
-     * encryptedSender replaces the old hardcoded "ANONYMOUS" string.
-     * The client receives the opaque ciphertext and decrypts it locally
-     * using ECDH(recipient.priv, senderPublicKey) to display the sender name —
-     * exactly as Proton Mail does, without the server ever seeing the sender.
-     */
     private MessageSummary mapToSummary(MessageEntity entity) {
         return new MessageSummary(
                 entity.getKey().id().toString(),
                 entity.getKey().threadId().toString(),
-                entity.getEncryptedSender(),   // was "ANONYMOUS" — client decrypts this
+                entity.getEncryptedSender(),
                 entity.getSubject(),
                 Uuids.unixTimestamp(entity.getKey().id()),
                 entity.isSealed(),
-                entity.getSenderPublicKey()
-        );
+                entity.getSenderPublicKey());
     }
 
-    /**
-     * Direct message lookup by composite key (recipient + threadId + id).
-     * This is the only path that can return sealed messages — the client
-     * must already know the exact message ID to access it.
-     */
-    public Mono<MessageDetail> getMessageById(String recipient, String threadId, String id) {
-        MessageKey key = new MessageKey(
-                recipient,
-                UUID.fromString(threadId),
-                UUID.fromString(id)
-        );
-
-        return repository.findById(key)
-                .map(entity -> new MessageDetail(
-                        entity.getKey().id().toString(),
-                        entity.getKey().threadId().toString(),
-                        entity.getEncryptedSender(),   // was "ANONYMOUS"
-                        entity.getSubject(),
-                        entity.getEncryptedBody(),
-                        entity.getMessageKey(),
-                        entity.getSenderPublicKey(),
-                        entity.isSealed()
-                       // entity.getAttachments() != null ? entity.getAttachments() : List.of()
-                ));
-    }
-
-    /**
-     * Returns all non-sealed messages for a recipient.
-     * Central helper enforcing the sealed-message exclusion invariant for all
-     * listing and search paths. Only {@link #getMessageById} bypasses this filter.
-     */
     private Flux<MessageEntity> searchableMessages(String recipient) {
         return repository.findAllByKeyRecipient(recipient)
                 .filter(entity -> !entity.isSealed());

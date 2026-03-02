@@ -1,9 +1,12 @@
-import { Component, OnInit, signal, inject } from '@angular/core'; // Added inject
+import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
-import { MessageService, MessageSummary } from '../../services/message.service';
+import { Subscription } from 'rxjs';
+
 import { AuthService } from '../../services/auth.service';
 import { CryptoService } from '../../services/crypto.service';
+import { MessageService, MessageSummary } from '../../services/message.service';
+import { InboxStreamService, InboxEvent } from '../../services/inbox-stream.service';
 
 @Component({
   selector: 'app-inbox',
@@ -12,16 +15,18 @@ import { CryptoService } from '../../services/crypto.service';
   templateUrl: './inbox.component.html',
   styleUrl: './inbox.component.scss'
 })
-export class InboxComponent implements OnInit {
-  private auth = inject(AuthService);
+export class InboxComponent implements OnInit, OnDestroy {
+  private auth          = inject(AuthService);
   private messageService = inject(MessageService);
-  private router = inject(Router);
-  private crypto = inject(CryptoService);
+  private router         = inject(Router);
+  private crypto         = inject(CryptoService);
+  private stream         = inject(InboxStreamService);
 
-  messages = signal<MessageSummary[]>([]);
-  loading = signal<boolean>(false);
-  
+  messages  = signal<MessageSummary[]>([]);
+  loading   = signal<boolean>(false);
   recipient = this.auth.currentUser;
+
+  private streamSub?: Subscription;
 
   ngOnInit(): void {
     const user = this.recipient();
@@ -29,7 +34,21 @@ export class InboxComponent implements OnInit {
       this.router.navigate(['/login']);
       return;
     }
+
+    // 1. Ladda befintliga meddelanden från ScyllaDB
     this.refreshInbox();
+
+    // 2. Öppna SSE-koppling — nya meddelanden dyker upp direkt
+    this.stream.connect(user);
+    this.streamSub = this.stream.inboxEvent$.subscribe(event => {
+      this.onNewMessageEvent(event);
+    });
+  }
+
+  ngOnDestroy(): void {
+    // Stäng SSE när komponenten förstörs (navigerar bort från inbox)
+    this.stream.disconnect();
+    this.streamSub?.unsubscribe();
   }
 
   refreshInbox(): void {
@@ -38,10 +57,10 @@ export class InboxComponent implements OnInit {
 
     this.loading.set(true);
     this.messageService.getInbox(user).subscribe({
-      next: (data) => {
+      next: async (data) => {
         this.messages.set(data);
         this.loading.set(false);
-        this.decryptSenders(data);
+        await this.decryptSenders(data);
       },
       error: (err) => {
         console.error('Vault access failed:', err);
@@ -50,35 +69,67 @@ export class InboxComponent implements OnInit {
     });
   }
 
-  openMessage(msg: MessageSummary) {
-    this.router.navigate(['/message', this.recipient(), msg.threadId, msg.id]);
+  /**
+   * Anropas av SSE-streamen när ett nytt meddelande anländer.
+   * Prepend:ar en ny MessageSummary-rad direkt i signalen —
+   * ingen page reload, noll latens.
+   *
+   * Obs: encryptedSender och senderPublicKey är INTE i Kafka-eventen
+   * (zero-knowledge design). Vi sätter placeholders — de fylls i
+   * när användaren faktiskt öppnar meddelandet (MessageDetailComponent
+   * fetchar hela detaljen via REST ändå).
+   */
+  private onNewMessageEvent(event: InboxEvent): void {
+    const newSummary: MessageSummary = {
+      id:              event.messageId,
+      threadId:        event.threadId,
+      subject:         event.subject,
+      timestamp:       event.timestamp,
+      sealed:          event.sealed,
+      encryptedSender: '',    // Saknas i Kafka-event av säkerhetsskäl — se JSDoc
+      senderPublicKey: '',    // Saknas i Kafka-event av säkerhetsskäl
+      decryptedSender: event.sealed ? undefined : '🔔 New Message',
+    };
+
+    // Prepend — nyaste meddelandet hamnar överst
+    this.messages.update(prev => [newSummary, ...prev]);
   }
 
   /**
-   * Decrypts senders asynchronously. 
-   * For "gazillions" of messages, this won't block the UI because 
-   * each decryption is an awaited microtask.
+   * BUG FIX: Navigera med recipient från auth-tjänsten, INTE från meddelandet.
+   * Tidigare: this.recipient() kunde vara null om signalen inte var satt.
+   * Nu: vi loggar och navigerar bara om recipient finns.
    */
-  private async decryptSenders(summaries: MessageSummary[]) {
+  openMessage(msg: MessageSummary): void {
+    const user = this.recipient();
+    if (!user) {
+      // Ska inte hända — authGuard skyddar den här routen
+      console.error('[Inbox] openMessage called but no authenticated user in session');
+      this.router.navigate(['/login']);
+      return;
+    }
+    // Route: /message/:recipient/:threadId/:id
+    this.router.navigate(['/message', user, msg.threadId, msg.id]);
+  }
+
+  private async decryptSenders(summaries: MessageSummary[]): Promise<void> {
     const privKey = this.auth.privateKeyBytes();
     if (!privKey) return;
 
-    // Process in parallel. browser's WebCrypto handles the threading.
     for (const msg of summaries) {
-      if (msg.sealed) continue; // Sealed messages are skipped or handled differently
+      if (msg.sealed || !msg.encryptedSender || !msg.senderPublicKey) continue;
 
       try {
-        const decrypted = await this.crypto.decryptSender(
+        msg.decryptedSender = await this.crypto.decryptSender(
           msg.encryptedSender,
           msg.senderPublicKey,
           privKey
         );
-        msg.decryptedSender = decrypted;
-      } catch (e) {
+      } catch {
         msg.decryptedSender = '[Unknown Sender]';
       }
     }
-    // Trigger signal update if needed (since we modified objects inside the array)
+    // Trigga signal-uppdatering
     this.messages.set([...summaries]);
-  }  
+  }
 }
