@@ -30,19 +30,14 @@ export class InboxComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     const user = this.recipient();
-    if (!user) {
-      this.router.navigate(['/login']);
-      return;
-    }
+    if (!user) { this.router.navigate(['/login']); return; }
 
-    // 1. Ladda befintliga meddelanden från ScyllaDB
-    this.refreshInbox();
-
-    // 2. Öppna SSE-koppling — nya meddelanden dyker upp direkt
     this.stream.connect(user);
     this.streamSub = this.stream.inboxEvent$.subscribe(event => {
-      this.onNewMessageEvent(event);
+        this.onNewMessageEvent(event);
     });
+
+    this.refreshInbox();
   }
 
   ngOnDestroy(): void {

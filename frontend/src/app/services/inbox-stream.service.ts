@@ -31,6 +31,10 @@ export class InboxStreamService implements OnDestroy {
     // Stäng eventuell tidigare koppling innan vi öppnar en ny
     this.disconnect();
 
+    if (this.eventSubject.closed) {
+        this.eventSubject = new Subject<InboxEvent>();
+    }
+
     const url = `/api/stream/${encodeURIComponent(recipient)}`;
     this.eventSource = new EventSource(url);
 

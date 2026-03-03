@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
+import java.time.Duration;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -65,7 +66,7 @@ public class InboxStreamService {
     public Flux<InboxEvent> streamFor(String recipient) {
         Sinks.Many<InboxEvent> sink = sinks.computeIfAbsent(
                 recipient,
-                k -> Sinks.many().multicast().onBackpressureBuffer(128));
+                _ -> Sinks.many().replay().limit(Duration.ofSeconds(10)));
 
         return sink.asFlux()
                 .doOnCancel(()    -> cleanup(recipient))
