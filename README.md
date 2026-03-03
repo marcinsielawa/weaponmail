@@ -1,113 +1,129 @@
 # Weapon Mail
 
-Weapon Mail is a high-scale, zero-knowledge E2EE messaging engine built with Spring Boot WebFlux, ScyllaDB, and Curve25519.
+**A high-scale, zero-knowledge end-to-end encrypted messaging engine.**
+
+Built with Spring Boot WebFlux, Apache Kafka, ScyllaDB, and Angular — engineered so the server is architecturally incapable of reading message contents.
 
 ---
 
-## Architecture Overview
+## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        Browser (Angular)                     │
-│  ┌────────────────┐   ┌──────────────────────────────────┐  │
-│  │  Auth Service  │   │       CryptoService (WebCrypto)  │  │
-│  │  (signup/login)│   │  ECDH P-256 · AES-GCM · HMAC    │  │
-│  └───────┬────────┘   └────────────────┬─────────────────┘  │
-│          │  TLS (encrypted payloads only)                    │
-└──────────┼──────────────────────────────────────────────────┘
-           │
-┌──────────▼──────────────────────────────────────────────────┐
-│             Spring Boot WebFlux Backend (Java 25)            │
-│   AccountController · MessageController · MessageService     │
-│   Zero-knowledge: stores only ciphertext, never reads body   │
-└──────────────────────────┬──────────────────────────────────┘
-                           │
-┌──────────────────────────▼──────────────────────────────────┐
-│                   ScyllaDB (Cassandra-compatible)            │
-│   accounts · messages · message_search_index tables          │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│                           Browser (Angular 21)                            │
+│                                                                           │
+│  ┌─────────────────────┐    ┌──────────────────────────────────────────┐  │
+│  │    AuthService      │    │           CryptoService (WebCrypto)      │  │
+│  │  signup · login     │    │  ECDH P-256 · AES-256-GCM · HMAC-SHA256 │  │
+│  │  key pair bootstrap │    │  Argon2id KDF · blind search tokens      │  │
+│  └──────────┬──────────┘    └───────────────────┬──────────────────────┘  │
+│             │                                   │                         │
+│  ┌──────────▼───────────────────────────────────▼──────────────────────┐  │
+│  │                     InboxStreamService (SSE)                        │  │
+│  │         EventSource → /api/stream/{recipient}                       │  │
+│  │         Real-time push — no polling, auto-reconnect                 │  │
+│  └──────────────────────────────┬───────────────────────────────────────┘  │
+└─────────────────────────────────┼──────────────────────────────────────────┘
+                                  │  HTTPS — only ciphertext crosses the wire
+┌─────────────────────────────────▼──────────────────────────────────────────┐
+│                  Spring Boot 4.x WebFlux Backend (Java 25)                  │
+│                                                                             │
+│  AccountController · MessageController · InboxStreamController              │
+│  MessageService · InboxStreamService                                        │
+│                                                                             │
+│  Zero-knowledge guarantee: backend stores opaque ciphertext only.           │
+│  It never holds a key capable of decrypting message bodies.                 │
+│                                                                             │
+│  Write path:  MessageService.sendMessage()                                  │
+│    → ScyllaDB.save()          (reactive, Cassandra driver)                  │
+│    → KafkaTemplate.send()     (bridges CompletableFuture → Mono,            │
+│                                Kafka I/O on its own sender thread)          │
+│                                                                             │
+│  Read path:   MessageController                                             │
+│    → ScyllaDB queries         (fully reactive Flux/Mono)                    │
+│                                                                             │
+│  SSE path:    InboxStreamController                                         │
+│    → InboxStreamService.streamFor(recipient)   (Sinks.Many → Flux)          │
+└──────────────┬──────────────────────────────────────────────────────────────┘
+               │                                    │
+               │  CQL (Cassandra driver)             │  Kafka protocol (KRaft)
+               │                                    │
+┌──────────────▼────────────────┐    ┌──────────────▼────────────────────────┐
+│  ScyllaDB (Cassandra-compat.) │    │       Apache Kafka 3.9 (KRaft)        │
+│                               │    │                                        │
+│  accounts                     │    │  Topic: inbox-events                   │
+│  messages                     │    │    key   = recipient (routing)         │
+│  message_search_index         │    │    value = InboxEvent (JSON)           │
+│                               │    │                                        │
+│  Blind token secondary index  │    │  Producer: MessageService              │
+│  HMAC search token lookup     │    │    acks=all · idempotent · retries=3   │
+└───────────────────────────────┘    │  Consumer: InboxStreamService          │
+                                     │    @KafkaListener on virtual thread    │
+                                     │    → emits to recipient's SSE Sink     │
+                                     └────────────────────────────────────────┘
+``` 
+
+### Message Flow: Send → Store → Stream
+
+```
+Browser (Sender)
+  │  1. Generate ephemeral ECDH key pair
+  │  2. Derive shared secret with recipient's public key
+  │  3. Encrypt body with AES-256-GCM (random bodyKey)
+  │  4. Wrap bodyKey with ECDH shared secret
+  │  5. Compute HMAC blind tokens (sender identity + search keywords)
+  │  6. POST /api/messages  — only ciphertext leaves the browser
+  ▼
+Spring Boot (MessageService)
+  │  7. Persist encrypted envelope to ScyllaDB  (reactive save)
+  │  8. Publish InboxEvent to Kafka topic inbox-events
+  │     — contains only: recipient, messageId, threadId, subject, timestamp
+  │     — encrypted body / messageKey / senderPublicKey NOT included
+  ▼
+Apache Kafka (topic: inbox-events)
+  │  9. Routes event to InboxStreamService consumer (virtual thread)
+  ▼
+InboxStreamService
+  │  10. Looks up recipient's Sinks.Many, emits InboxEvent
+  ▼
+Browser (Recipient — SSE / EventSource)
+  │  11. Receives push notification, prepends to inbox
+  │  12. On open: fetches full message detail via REST (decrypts client-side)
 ```
 
-### Zero-Knowledge Properties
-- Message bodies are **AES-GCM encrypted client-side** before leaving the browser
-- The server stores an opaque `encryptedBody` blob — it cannot read the content
-- Sender identity is hidden: only an HMAC blind token and an encrypted blob are stored
-- Keyword search uses HMAC tokens — the server matches without knowing the keywords
-- Private keys are wrapped with an Argon2id-derived master key and stored encrypted
+---
+
+## Zero-Knowledge Properties
+
+| Property | Mechanism |
+|---|---|
+| **Body confidentiality** | AES-256-GCM encrypted client-side before transmission. Server stores opaque ciphertext. |
+| **Sender anonymity** | Sender identity encrypted to recipient's public key. Server holds only an HMAC blind token. |
+| **Keyword search privacy** | Search tokens are HMAC-SHA256 digests derived from the user's master key. Server matches tokens without knowing keywords. |
+| **Key confidentiality** | Private keys are wrapped with an Argon2id-derived master key — the master key never leaves the browser. |
+| **Forward secrecy** | Each message uses a fresh ephemeral ECDH key pair, discarded after send. Compromising the long-term private key does not expose past message bodies. |
+| **Kafka event safety** | InboxEvent published to Kafka contains zero cryptographic material — only routing metadata the server already holds. |
 
 ---
 
 ## Technology Stack
 
-| Layer | Technology | Purpose |
+| Layer | Technology | Role |
 |---|---|---|
-| Frontend | Angular 21 | SPA — all crypto runs in the browser |
-| Crypto (frontend) | WebCrypto API (P-256 / AES-GCM) | Native ECDH key agreement + symmetric encryption |
-| KDF | Argon2id (hash-wasm) / PBKDF2-SHA256 | Password-based master key derivation |
-| Backend | Spring Boot 4.x WebFlux (Java 25) | Non-blocking reactive REST API |
-| Crypto (backend tests) | BouncyCastle (`bcprov-jdk18on`) | X25519 key pairs in test utilities |
-| Database | ScyllaDB (Cassandra-compatible) | High-throughput distributed message storage |
-| Transport | TLS | Protects metadata in transit |
-
----
-
-## Local Development Setup
-
-### Prerequisites
-- Java 25+ (for backend)
-- Node.js 22+ and npm 11+ (for frontend)
-- Docker and Docker Compose (for ScyllaDB)
-
-### 1. Start ScyllaDB
-
-```bash
-docker-compose up -d scylladb
-```
-
-Wait ~30 seconds for ScyllaDB to start, then apply the schema:
-
-```bash
-docker exec -i weaponmail-db cqlsh < backend/src/main/resources/schema.cql
-```
-
-### 2. Start the backend
-
-```bash
-cd backend
-./mvnw spring-boot:run
-```
-
-The API will be available at `http://localhost:8080`.
-
-### 3. Start the frontend
-
-```bash
-cd frontend
-npm install
-npm start
-```
-
-The Angular dev server will be available at `http://localhost:4200` and will proxy API calls to the backend.
-
-### 4. Run backend tests (no database required)
-
-```bash
-cd backend
-./mvnw test
-```
-
-All tests mock the Cassandra repositories so they run without a live ScyllaDB.
-
-### 5. Run frontend tests
-
-```bash
-cd frontend
-npm test
-```
+| Frontend | Angular 21 (zoneless) | SPA — all cryptographic operations run exclusively in the browser |
+| Crypto (frontend) | WebCrypto API — P-256 / AES-256-GCM | Native ECDH key agreement and symmetric authenticated encryption |
+| KDF | Argon2id (hash-wasm) · PBKDF2-SHA256 fallback | Password-based master key derivation; strategy pattern allows DI swap |
+| Real-time | Server-Sent Events (EventSource) | Push inbox notifications from backend to browser |
+| Backend | Spring Boot 4.x WebFlux (Java 25) | Non-blocking reactive REST API; all DB calls return `Mono` / `Flux` |
+| Message broker | Apache Kafka 3.9 (KRaft — no ZooKeeper) | Decouples message persistence from real-time SSE fan-out |
+| Database | ScyllaDB (Cassandra-compatible) | High-throughput distributed storage; blind token secondary indexes |
+| Crypto (backend) | BouncyCastle `bcprov-jdk18on` | X25519 key pair generation in test utilities |
+| Transport | TLS | All traffic encrypted in transit; only ciphertext payloads reach the server |
 
 ---
 
 ## Security & Cryptography Documentation
 
-- [`SECURITY.md`](./SECURITY.md) — Full threat model, crypto design, and known tradeoffs
+Full threat model, key derivation scheme, message encryption flow, blind search design, and known tradeoffs:
 
+→ [`SECURITY.md`](./SECURITY.md)
