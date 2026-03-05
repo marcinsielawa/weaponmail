@@ -146,7 +146,7 @@ export class ComposeComponent implements OnInit {
       this.messageService.sendMessage(payload as any).subscribe({
         next: () => {
           console.log('Message sealed and stored in vault.');
-          this.router.navigate(['/inbox']);
+          //this.router.navigate(['/inbox']);
         },
         error: (err) => {
           console.error('Vault rejection:', err);

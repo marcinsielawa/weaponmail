@@ -78,19 +78,21 @@ public class InboxStreamService {
                 .doOnTerminate(() -> cleanup(recipient));
     }
 
+    
+    
     private void cleanup(String recipient) {
-        Sinks.Many<InboxEvent> sink = sinks.get(recipient);
-        if (sink != null && sink.currentSubscriberCount() == 0) {
-            sinks.remove(recipient);
-            log.debug("[SSE] Sink removed for {} (no more subscribers)", recipient);
-        } else {
-            log.debug("[SSE] Client disconnected for {}, but keeping sink active (subscribers: {})", 
-                recipient, sink != null ? sink.currentSubscriberCount() : 0);
-        }
-        
-        if (sink.currentSubscriberCount() == 0) {
-            sinks.remove(recipient);
-        }
-        log.debug("[SSE] Sink removed for {} (browser disconnected)", recipient);
+        // Use remove(key, value) for an atomic check-and-remove.
+        // This prevents removing a *new* sink that was created by a reconnecting
+        // browser between the subscriber-count check and the remove call.
+        sinks.computeIfPresent(recipient, (key, sink) -> {
+            if (sink.currentSubscriberCount() == 0) {
+                log.debug("[SSE] Sink removed for {} (no more subscribers)", recipient);
+                return null; // returning null removes the entry atomically
+            } else {
+                log.debug("[SSE] Client disconnected for {}, keeping sink active (subscribers: {})",
+                        recipient, sink.currentSubscriberCount());
+                return sink; // keep it
+            }
+        });
     }
 }
