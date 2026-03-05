@@ -7,6 +7,7 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
+import reactor.core.publisher.Sinks.Many;
 
 import java.time.Duration;
 import java.util.concurrent.ConcurrentHashMap;
@@ -14,38 +15,39 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Bridges Kafka → SSE using Spring's @KafkaListener.
  *
- * <p>Spring Boot 4 configures @KafkaListener containers to run on virtual threads by default
- * (via {@code spring.threads.virtual.enabled=true}). This means the blocking Kafka poll loop
- * inside the listener container is pinned to a cheap virtual thread — no event loop starvation,
- * no reactor-kafka complexity.
+ * <p>
+ * Spring Boot 4 configures @KafkaListener containers to run on virtual threads
+ * by default (via {@code spring.threads.virtual.enabled=true}). This means the
+ * blocking Kafka poll loop inside the listener container is pinned to a cheap
+ * virtual thread — no event loop starvation, no reactor-kafka complexity.
  *
- * <p>When an event arrives, it is emitted into the recipient's {@link Sinks.Many}. Any open
- * SSE connection ({@link InboxStreamController}) subscribed to that sink receives the event
- * immediately via the reactive Flux.
+ * <p>
+ * When an event arrives, it is emitted into the recipient's {@link Sinks.Many}.
+ * Any open SSE connection ({@link InboxStreamController}) subscribed to that
+ * sink receives the event immediately via the reactive Flux.
  */
 @Service
 public class InboxStreamService {
 
     private static final Logger log = LoggerFactory.getLogger(InboxStreamService.class);
 
-    // One Sink per active recipient — lazily created on first SSE connect, cleaned up on disconnect.
-    private final ConcurrentHashMap<String, Sinks.Many<InboxEvent>> sinks =
-            new ConcurrentHashMap<>();
+    // One Sink per active recipient — lazily created on first SSE connect, cleaned
+    // up on disconnect.
+    private final ConcurrentHashMap<String, Sinks.Many<InboxEvent>> sinks = new ConcurrentHashMap<>();
 
     /**
-     * Kafka consumer — runs on a virtual thread (Spring Boot 4 default).
-     * Blocking here is perfectly safe: the virtual thread is parked, not a platform thread.
+     * Kafka consumer — runs on a virtual thread (Spring Boot 4 default). Blocking
+     * here is perfectly safe: the virtual thread is parked, not a platform thread.
      *
      * groupId matches application.yml spring.kafka.consumer.group-id
      */
-    @KafkaListener(
-        topics    = "${weaponmail.kafka.topics.inbox-events}",
-        groupId   = "${spring.kafka.consumer.group-id}"
-    )
+    @KafkaListener(topics = "${weaponmail.kafka.topics.inbox-events}", groupId = "${spring.kafka.consumer.group-id}")
     public void onInboxEvent(InboxEvent event) {
+        log.debug("[SSE] Received event from Kafka for recipient: '{}'", event.recipient()); 
         Sinks.Many<InboxEvent> sink = sinks.get(event.recipient());
         if (sink == null) {
-            // No browser currently connected for this recipient — event is intentionally dropped.
+            // No browser currently connected for this recipient — event is intentionally
+            // dropped.
             // The browser will do a full REST fetch of the inbox on next login/reconnect.
             log.debug("[SSE] No active sink for {} — event dropped (recipient offline)", event.recipient());
             return;
@@ -60,21 +62,35 @@ public class InboxStreamService {
     }
 
     /**
-     * Called by {@link InboxStreamController} when a browser opens an SSE connection.
-     * Creates (or reuses) a multicast Sink for this recipient and returns its Flux.
+     * Called by {@link InboxStreamController} when a browser opens an SSE
+     * connection. Creates (or reuses) a multicast Sink for this recipient and
+     * returns its Flux.
      */
     public Flux<InboxEvent> streamFor(String recipient) {
-        Sinks.Many<InboxEvent> sink = sinks.computeIfAbsent(
-                recipient,
+        log.debug("[SSE] New subscription request for {}", recipient);
+        
+        Sinks.Many<InboxEvent> sink = sinks.computeIfAbsent(recipient,
                 _ -> Sinks.many().replay().limit(Duration.ofSeconds(10)));
 
         return sink.asFlux()
+                .doOnSubscribe(sub -> log.debug("[SSE] Client subscribed to flux for {}", recipient))
                 .doOnCancel(()    -> cleanup(recipient))
                 .doOnTerminate(() -> cleanup(recipient));
     }
 
     private void cleanup(String recipient) {
-        sinks.remove(recipient);
+        Sinks.Many<InboxEvent> sink = sinks.get(recipient);
+        if (sink != null && sink.currentSubscriberCount() == 0) {
+            sinks.remove(recipient);
+            log.debug("[SSE] Sink removed for {} (no more subscribers)", recipient);
+        } else {
+            log.debug("[SSE] Client disconnected for {}, but keeping sink active (subscribers: {})", 
+                recipient, sink != null ? sink.currentSubscriberCount() : 0);
+        }
+        
+        if (sink.currentSubscriberCount() == 0) {
+            sinks.remove(recipient);
+        }
         log.debug("[SSE] Sink removed for {} (browser disconnected)", recipient);
     }
 }

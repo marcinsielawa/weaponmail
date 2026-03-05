@@ -1,3 +1,10 @@
+logging:
+  level:
+    # Aktivera DEBUG för din specifika service
+    com.weaponmail.stream.InboxStreamService: DEBUG
+    # Om du vill se när anslutningar öppnas/stängs i kontrollern också:
+    com.weaponmail.stream.InboxStreamController: DEBUG
+
 spring:
 
   # --─ Virtual Threads (Java 25 / Spring Boot 4) ─────────────────────────────
