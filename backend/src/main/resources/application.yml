@@ -1,9 +1,6 @@
 logging:
   level:
-    # Aktivera DEBUG för din specifika service
-    com.weaponmail.stream.InboxStreamService: DEBUG
-    # Om du vill se när anslutningar öppnas/stängs i kontrollern också:
-    com.weaponmail.stream.InboxStreamController: DEBUG
+    com.weaponmail.stream: DEBUG
 
 spring:
 
@@ -29,10 +26,8 @@ spring:
       connect-timeout: 10s
       init-query-timeout: 10s
 
-  # ── Kafka ─────────────────────────────────────────────────────────────────
   kafka:
     bootstrap-servers: localhost:9092  # PLAINTEXT_HOST listener (Mac → Docker port mapping)
-
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
@@ -43,7 +38,7 @@ spring:
 
     consumer:
       group-id: weaponmail-sse-group
-      auto-offset-reset: latest         # SSE only needs new events, not historical replay
+      auto-offset-reset: earliest         # SSE only needs new events, not historical replay
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:

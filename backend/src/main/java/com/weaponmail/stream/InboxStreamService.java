@@ -3,6 +3,7 @@ package com.weaponmail.stream;
 import com.weaponmail.message.event.InboxEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
@@ -27,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * sink receives the event immediately via the reactive Flux.
  */
 @Service
+@EnableKafka
 public class InboxStreamService {
 
     private static final Logger log = LoggerFactory.getLogger(InboxStreamService.class);
@@ -68,30 +70,28 @@ public class InboxStreamService {
      */
     public Flux<InboxEvent> streamFor(String recipient) {
         log.debug("[SSE] New subscription request for {}", recipient);
-        
-        Sinks.Many<InboxEvent> sink = sinks.computeIfAbsent(recipient,
-                _ -> Sinks.many().replay().limit(Duration.ofSeconds(10)));
+
+        Sinks.Many<InboxEvent> sink = sinks.computeIfAbsent(
+                recipient,
+                _ -> Sinks.many().multicast().onBackpressureBuffer(256, false));
 
         return sink.asFlux()
                 .doOnSubscribe(sub -> log.debug("[SSE] Client subscribed to flux for {}", recipient))
-                .doOnCancel(()    -> cleanup(recipient))
-                .doOnTerminate(() -> cleanup(recipient));
+                .doFinally(signal -> {
+                    log.debug("[SSE] Flux terminated for {} — signal: {}", recipient, signal);
+                    cleanup(recipient);
+                });
     }
 
-    
-    
     private void cleanup(String recipient) {
-        // Use remove(key, value) for an atomic check-and-remove.
-        // This prevents removing a *new* sink that was created by a reconnecting
-        // browser between the subscriber-count check and the remove call.
         sinks.computeIfPresent(recipient, (key, sink) -> {
             if (sink.currentSubscriberCount() == 0) {
                 log.debug("[SSE] Sink removed for {} (no more subscribers)", recipient);
-                return null; // returning null removes the entry atomically
+                return null;
             } else {
                 log.debug("[SSE] Client disconnected for {}, keeping sink active (subscribers: {})",
                         recipient, sink.currentSubscriberCount());
-                return sink; // keep it
+                return sink;
             }
         });
     }
