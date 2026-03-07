@@ -14,27 +14,34 @@ public class TestcontainersConfig {
     @SuppressWarnings("resource")
     @Bean
     CassandraContainer scyllaDbContainer() {
-        return new CassandraContainer(DockerImageName.parse("scylladb/scylla:latest")
-                .asCompatibleSubstituteFor("cassandra"))
-                .withInitScript("schema.cql"); // Ändrat till schema.cql som finns i resources
+        // Fix för ScyllaDB-kompatibilitet
+        DockerImageName scyllaImage = DockerImageName.parse("scylladb/scylla:latest")
+                .asCompatibleSubstituteFor("cassandra");
+        
+        return new CassandraContainer(scyllaImage)
+                .withInitScript("schema.cql");
     }
 
+    @SuppressWarnings("resource")
     @Bean
     KafkaContainer kafkaContainer() {
+        // Vi kör på latest men lagar start-skriptet manuellt
         return new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:latest")
-                .asCompatibleSubstituteFor("apache/kafka"));
+                .asCompatibleSubstituteFor("apache/kafka"))
+                .withCreateContainerCmdModifier(cmd -> {
+                    // Vi "lurar" Testcontainers genom att länka det nya skriptet till det gamla stället
+                    cmd.withEntrypoint("sh", "-c", 
+                        "mkdir -p /etc/kafka/docker && ln -s /etc/confluent/docker/run /etc/kafka/docker/run && exec /etc/confluent/docker/run");
+                });
     }
 
-    // Vi mappar properties manuellt för att undvika @ServiceConnection-felet
     @DynamicPropertySource
     static void overrideProps(DynamicPropertyRegistry registry, 
                              KafkaContainer kafka, 
                              CassandraContainer scylla) {
         
-        // Kafka
         registry.add("spring.kafka.bootstrap-servers", kafka::getBootstrapServers);
         
-        // ScyllaDB / Cassandra
         registry.add("spring.cassandra.contact-points", () -> 
             scylla.getHost() + ":" + scylla.getMappedPort(9042));
         registry.add("spring.cassandra.local-datacenter", () -> "datacenter1");
