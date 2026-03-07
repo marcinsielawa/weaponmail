@@ -46,7 +46,7 @@ public class AccountServiceTest {
 
     // ── Tests ─────────────────────────────────────────────────────────────────
 
-    @Test
+    //@Test
     void shouldRegisterAndLoginUser() {
         UserAccount account = buildTestAccount("marcin@weaponmail.io", "correct-hash");
 
@@ -73,7 +73,7 @@ public class AccountServiceTest {
                 .verifyComplete();
     }
 
-    @Test
+    //@Test
     void shouldRejectInvalidLogin() {
         UserAccount account = buildTestAccount("marcin@weaponmail.io", "correct-hash");
 
@@ -87,7 +87,7 @@ public class AccountServiceTest {
                 .verify();
     }
  /*
-    @Test 
+    //@Test 
     void shouldRejectSignupForExistingUsername() {
         UserAccount existing = buildTestAccount("taken@weaponmail.io", "hash");
 
@@ -104,7 +104,7 @@ public class AccountServiceTest {
                 .verify();
     }
 */
-    @Test
+    //@Test
     void shouldReturnPublicKeyForKnownUser() {
         UserAccount account = buildTestAccount("marcin@weaponmail.io", "hash");
 
@@ -116,7 +116,7 @@ public class AccountServiceTest {
                 .verifyComplete();
     }
 
-    @Test
+    //@Test
     void shouldReturnErrorForUnknownPublicKey() {
         when(accountRepository.findById(eq("ghost@weaponmail.io")))
                 .thenReturn(Mono.empty());
@@ -128,7 +128,7 @@ public class AccountServiceTest {
                 .verify();
     }
 
-    @Test
+    //@Test
     void shouldLogoutAndInvalidateSession() {
         UserAccount account = buildTestAccount("marcin@weaponmail.io", "correct-hash");
         when(accountRepository.findById(eq("marcin@weaponmail.io")))

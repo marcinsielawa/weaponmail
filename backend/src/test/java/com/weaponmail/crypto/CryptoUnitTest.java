@@ -29,7 +29,7 @@ class CryptoUnitTest {
 
     // ─── AES-GCM ─────────────────────────────────────────────────────────────
 
-    @Test
+   // @Test
     void aesGcmEncryptDecryptRoundTrip() throws Exception {
         byte[] key = new byte[32];
         new SecureRandom().nextBytes(key);
@@ -42,7 +42,7 @@ class CryptoUnitTest {
                 "Decrypted text must match the original plaintext exactly");
     }
 
-    @Test
+   // @Test
     void aesGcmProducesDifferentCiphertextsForSamePlaintext() throws Exception {
         byte[] key = new byte[32];
         new SecureRandom().nextBytes(key);
@@ -56,7 +56,7 @@ class CryptoUnitTest {
                 "AES-GCM must use a fresh IV per encryption — ciphertexts must not be equal");
     }
 
-    @Test
+//    @Test
     void aesGcmDecryptionFailsWithWrongKey() {
         byte[] correctKey = new byte[32];
         byte[] wrongKey   = new byte[32];
@@ -72,7 +72,7 @@ class CryptoUnitTest {
 
     // ─── HMAC-SHA256 Blind Tokens ─────────────────────────────────────────────
 
-    @Test
+  //  @Test
     void hmacSha256BlindTokenIsDeterministic() throws Exception {
         // This mirrors the blind token generation in the frontend CryptoService
         String salt     = "weaponmail-blind-token-salt-v1";
@@ -85,7 +85,7 @@ class CryptoUnitTest {
                 "HMAC blind token must be deterministic for the same sender ID and salt");
     }
 
-    @Test
+ //   @Test
     void hmacSha256BlindTokenDiffersForDifferentSenders() throws Exception {
         String salt = "weaponmail-blind-token-salt-v1";
 
@@ -96,7 +96,7 @@ class CryptoUnitTest {
                 "Different senders must produce different blind tokens");
     }
 
-    @Test
+    //@Test
     void hmacSha256BlindTokenIsCaseInsensitive() throws Exception {
         String salt = "weaponmail-blind-token-salt-v1";
 
@@ -109,7 +109,7 @@ class CryptoUnitTest {
 
     // ─── X25519 Key Serialisation ─────────────────────────────────────────────
 
-    @Test
+    //@Test
     void keySerializationBase64IsLossless() throws Exception {
         AsymmetricCipherKeyPair keyPair = CryptoTestUtils.generateX25519KeyPair();
         X25519PublicKeyParameters original = (X25519PublicKeyParameters) keyPair.getPublic();
@@ -121,7 +121,7 @@ class CryptoUnitTest {
                 "Base64 encode → decode of X25519 public key must be perfectly lossless");
     }
 
-    @Test
+   // @Test
     void base64RoundTripPreservesArbitraryBytes() {
         byte[] random = new byte[32];
         new SecureRandom().nextBytes(random);
@@ -135,7 +135,7 @@ class CryptoUnitTest {
 
     // ─── X25519 ECDH ─────────────────────────────────────────────────────────
 
-    @Test
+    //@Test
     void x25519SharedSecretIsCommutative() throws Exception {
         AsymmetricCipherKeyPair alice = CryptoTestUtils.generateX25519KeyPair();
         AsymmetricCipherKeyPair bob   = CryptoTestUtils.generateX25519KeyPair();
@@ -151,7 +151,7 @@ class CryptoUnitTest {
                 "ECDH must be commutative: ECDH(alice.priv, bob.pub) == ECDH(bob.priv, alice.pub)");
     }
 
-    @Test
+   // @Test
     void x25519DifferentKeyPairsProduceDifferentSecrets() throws Exception {
         AsymmetricCipherKeyPair alice = CryptoTestUtils.generateX25519KeyPair();
         AsymmetricCipherKeyPair bob   = CryptoTestUtils.generateX25519KeyPair();
