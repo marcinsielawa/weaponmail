@@ -1,0 +1,30 @@
+name: Weapon Mail CI
+
+# 1. TA BORT ELLER KOMMENTERA BORT DESSA:
+# on:
+#   push:
+#     branches: [ main, dev ]
+#   pull_request:
+#     branches: [ main ]
+
+# 2. LÄGG TILL DENNA ISTÄLLET:
+on:
+  workflow_dispatch: # Tillåter endast manuell start via GitHub UI
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          
+      # Här ligger dina dyra steg (Gatling, LLM-väktare etc.)
+      - name: Run Performance Tests and AI Guardian
+        run: |
+          echo "Körs endast när du klickar på knappen i GitHub!"
+          # ./mvnw verify -Pperformance
