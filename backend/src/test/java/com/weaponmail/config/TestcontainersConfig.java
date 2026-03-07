@@ -13,14 +13,16 @@ public class TestcontainersConfig {
 
     @SuppressWarnings("resource")
     @Bean
-    public CassandraContainer scyllaDbContainer() {
-        return new CassandraContainer(DockerImageName.parse("scylladb/scylla:latest"))
+    CassandraContainer scyllaDbContainer() {
+        return new CassandraContainer(DockerImageName.parse("scylladb/scylla:latest")
+                .asCompatibleSubstituteFor("cassandra"))
                 .withInitScript("schema.cql"); // Ändrat till schema.cql som finns i resources
     }
 
     @Bean
-    public KafkaContainer kafkaContainer() {
-        return new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:latest"));
+    KafkaContainer kafkaContainer() {
+        return new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:latest")
+                .asCompatibleSubstituteFor("apache/kafka"));
     }
 
     // Vi mappar properties manuellt för att undvika @ServiceConnection-felet
