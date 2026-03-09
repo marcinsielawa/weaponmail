@@ -10,7 +10,7 @@ import org.testcontainers.containers.Network;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.utility.DockerImageName;
 
-import java.util.List;
+import java.time.Duration;
 
 @TestConfiguration(proxyBeanMethods = false)
 public class TestcontainersConfig {
@@ -27,6 +27,8 @@ public class TestcontainersConfig {
         return new CassandraContainer(scyllaImage)
                 .withNetwork(network)
                 .withNetworkAliases("scylladb")
+                .waitingFor(Wait.forListeningPort())
+                .withStartupTimeout(Duration.ofMinutes(2))
                 .withInitScript("schema.cql");
     }
 
@@ -61,8 +63,8 @@ public class TestcontainersConfig {
         registry.add("spring.kafka.bootstrap-servers", 
             () -> "localhost:" + kafka.getMappedPort(9092));
         
-        registry.add("spring.cassandra.contact-points", () -> 
-            scylla.getHost() + ":" + scylla.getMappedPort(9042));
+        registry.add("spring.cassandra.contact-points", 
+            () -> scylla.getHost() +  ":" + scylla.getMappedPort(9042));
         registry.add("spring.cassandra.local-datacenter", () -> "datacenter1");
         registry.add("spring.cassandra.keyspace-name", () -> "weaponmail");
         registry.add("weaponmail.kafka.topics.inbox-events", () -> "inbox.events");
