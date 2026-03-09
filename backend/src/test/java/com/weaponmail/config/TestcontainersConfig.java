@@ -71,8 +71,7 @@ public class TestcontainersConfig {
                              CassandraContainer scylla) {
         
         // Här mappar vi testernas anslutning till den dynamiska porten på localhost
-        registry.add("spring.kafka.bootstrap-servers", 
-            ()  -> "kafka:" + kafka.getMappedPort(9092));
-        registry.add("weaponmail.kafka.topics.inbox-events", () -> "inbox.events");
+   //     registry.add("spring.kafka.bootstrap-servers", kafka::getBootstrapServers);
+     //   registry.add("weaponmail.kafka.topics.inbox-events", () -> "inbox.events");
     }
 }
