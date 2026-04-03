@@ -6,6 +6,7 @@ import java.util.concurrent.CompletableFuture;
 
 import com.datastax.oss.driver.api.core.uuid.Uuids;
 import com.weaponmail.message.event.InboxEvent;
+import com.weaponmail.message.event.InboxEventPublisher;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,15 +37,14 @@ public class MessageService {
     private static final Logger log = LoggerFactory.getLogger(MessageService.class);
 
     private final MessageRepository repository;
-    private final KafkaTemplate<String, InboxEvent> kafkaTemplate;
+    
+    private final InboxEventPublisher messageEventPublisher;
 
-    @Value("${weaponmail.kafka.topics.inbox-events}")
-    private String inboxEventsTopic;
 
     public MessageService(MessageRepository repository,
-                          KafkaTemplate<String, InboxEvent> kafkaTemplate) {
+                                InboxEventPublisher messageEventPublisher) {
         this.repository = repository;
-        this.kafkaTemplate = kafkaTemplate;
+        this.messageEventPublisher = messageEventPublisher;
     }
 
     // ── Read paths — unchanged, fully reactive ──────────────────────────────
@@ -120,11 +120,9 @@ public class MessageService {
                     // KafkaTemplate.send() → CompletableFuture<SendResult>
                     // Mono.fromFuture()    → subscribes the event loop without blocking it
                     // The Kafka producer's internal sender thread completes the future.
-                    CompletableFuture<Void> sendFuture = kafkaTemplate
-                            .send(inboxEventsTopic, event.recipient(), event)
-                            .thenApply(_ -> null);  // SendResult → Void
+                    ;
 
-                    return Mono.fromFuture(sendFuture)
+                    return messageEventPublisher.publish(event)
                             .doOnSuccess(_ -> log.debug(
                                     "[Kafka] Published inbox event for {} | msg={}",
                                     event.recipient(), event.messageId()))

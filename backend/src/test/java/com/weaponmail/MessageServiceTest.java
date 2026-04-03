@@ -1,38 +1,36 @@
 package com.weaponmail;
 
-import com.weaponmail.crypto.CryptoTestUtils;
-import com.weaponmail.message.MessageRequest;
-import com.weaponmail.message.MessageService;
-import com.weaponmail.message.event.InboxEventPublisher;
-import com.weaponmail.message.MessageRepository;
-import com.weaponmail.account.AccountRepository;
-import org.bouncycastle.crypto.AsymmetricCipherKeyPair;
-import org.bouncycastle.crypto.params.X25519PrivateKeyParameters;
-import org.bouncycastle.crypto.params.X25519PublicKeyParameters;
-import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-
-import reactor.test.StepVerifier;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.security.SecureRandom;
 import java.util.Base64;
-import java.util.Collections;
 import java.util.Set;
+import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import org.bouncycastle.crypto.AsymmetricCipherKeyPair;
+import org.bouncycastle.crypto.params.X25519PrivateKeyParameters;
+import org.bouncycastle.crypto.params.X25519PublicKeyParameters;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
+import com.datastax.oss.driver.api.core.uuid.Uuids;
+import com.weaponmail.crypto.CryptoTestUtils;
 import com.weaponmail.message.MessageEntity;
 import com.weaponmail.message.MessageKey;
-import com.datastax.oss.driver.api.core.uuid.Uuids;
+import com.weaponmail.message.MessageRepository;
+import com.weaponmail.message.MessageRequest;
+import com.weaponmail.message.MessageService;
+import com.weaponmail.message.event.InboxEventPublisher;
+
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-
-import java.util.UUID;
+import reactor.test.StepVerifier;
 
 /**
  * End-to-End Encryption Integration Test.
@@ -45,25 +43,28 @@ import java.util.UUID;
  *   Sender: ECDH(ephemeral.priv, recipient.pub) → sharedSecret → AES-GCM(messageKey)
  *   Recipient: ECDH(recipient.priv, ephemeral.pub) → same sharedSecret → AES-GCM⁻¹(messageKey)
  */
-//@SpringBootTest
-public class E2EEncryptionTest {
+public class MessageServiceTest {
 
-    @Autowired
-    private MessageService service;
 
-    // Mock out both Cassandra repositories so this test runs without a live DB.
-    // The crypto logic is what we are verifying here — not DB connectivity.
-    @MockitoBean
-    private MessageRepository messageRepository;
+    private MessageRepository   messageRepository = mock(MessageRepository.class);
+
+    private InboxEventPublisher inboxEventPublisher  = mock(InboxEventPublisher.class);
     
-    // @Test
+    private MessageService service = new MessageService(messageRepository, inboxEventPublisher);
+    
+    @BeforeEach 
+    void before(){
+        when(inboxEventPublisher.publish(any())).thenReturn(Mono.empty());    
+    }
+    
+    @Test
     void shouldPerformFullE2EEFlow() throws Exception {
         final String originalMessage = "The eagle has landed in Stockholm";
         final String targetEmail     = "marcin@weaponmail.io";
         final UUID   threadId        = UUID.randomUUID();
         
         // ── 1. RECIPIENT SETUP ─────────────────────────────────────────────────
-        AsymmetricCipherKeyPair recipientKeys = CryptoTestUtils.generateX25519KeyPair();
+        AsymmetricCipherKeyPair    recipientKeys = CryptoTestUtils.generateX25519KeyPair();
         X25519PublicKeyParameters  recipientPub  = (X25519PublicKeyParameters)  recipientKeys.getPublic();
         X25519PrivateKeyParameters recipientPriv = (X25519PrivateKeyParameters) recipientKeys.getPrivate();
 
@@ -153,7 +154,7 @@ public class E2EEncryptionTest {
                 assertEquals(originalMessage, decryptedMessage,
                         "Decrypted message must exactly match the original plaintext");
 
-                System.out.println("✅ E2EE Spring Verified. Decrypted: " + decryptedMessage);
+                System.out.println("✅ E2EE Verified. Decrypted: " + decryptedMessage);
 
             } catch (Exception e) {
                 throw new RuntimeException("Decryption pipeline failed", e);
@@ -168,7 +169,7 @@ public class E2EEncryptionTest {
      * shared secret produces an authentication tag mismatch, which throws an exception.
      * This verifies that the crypto primitives enforce integrity.
      */
-    // @Test
+    @Test
     void shouldFailDecryptionWithWrongPrivateKey() throws Exception {
         // Real recipient key pair
         AsymmetricCipherKeyPair realRecipient = CryptoTestUtils.generateX25519KeyPair();
@@ -205,7 +206,7 @@ public class E2EEncryptionTest {
      * MessageService.getMessages() applies a .filter(entity -> !entity.isSealed()) so that
      * sealed messages are only retrievable via direct getMessageById() lookup.
      */
-    // @Test
+    @Test
     void shouldExcludeSealedMessagesFromInboxListing() {
         final String recipient = "vault@weaponmail.io";
 
@@ -234,7 +235,7 @@ public class E2EEncryptionTest {
      * Zero-knowledge sender search: searchBySender matches on the HMAC blind token
      * and returns the matching message summary, excluding sealed messages.
      */
-    // @Test
+    @Test
     void shouldFindNonSealedMessageBySenderBlindToken() {
         final String recipient  = "inbox@weaponmail.io";
         final String blindToken = "HMAC-SHA256-BLIND-TOKEN-ABC";
@@ -267,7 +268,7 @@ public class E2EEncryptionTest {
      * Sealed messages MUST be excluded from the blind token sender search.
      * searchBySender applies the same sealed filter as getMessages.
      */
-    // @Test
+    @Test
     void shouldExcludeSealedMessageFromBlindTokenSearch() {
         final String recipient  = "inbox@weaponmail.io";
         final String blindToken = "HMAC-SHA256-BLIND-TOKEN-XYZ";
@@ -298,7 +299,7 @@ public class E2EEncryptionTest {
      * The server stores HMAC-SHA256 keyword tokens as opaque blobs for blind search.
      * This test ensures they survive the service layer unmodified.
      */
-    // @Test
+    @Test
     void shouldPersistSearchTokensWithMessage() {
         final String recipient = "search@weaponmail.io";
         final Set<String> searchTokens = Set.of("TOKEN-ALPHA", "TOKEN-BETA");
