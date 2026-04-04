@@ -16,4 +16,6 @@ class WeaponMailApplicationTests {
         // har startat i Docker och att Spring WebFlux har kopplat upp sig!
         System.out.println("Systemet är redo för utveckling!");
     }
+    
+    
 }

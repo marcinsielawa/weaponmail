@@ -58,6 +58,7 @@ public class E2EEncryptionTest {
     @MockitoBean
     private AccountRepository accountRepository;
     
+    
     //@Test
     void shouldPerformFullE2EEFlow() throws Exception {
         final String originalMessage = "The eagle has landed in Stockholm";
@@ -65,7 +66,7 @@ public class E2EEncryptionTest {
         final UUID   threadId        = UUID.randomUUID();
         
         // ── 1. RECIPIENT SETUP ─────────────────────────────────────────────────
-        AsymmetricCipherKeyPair recipientKeys = CryptoTestUtils.generateX25519KeyPair();
+        AsymmetricCipherKeyPair    recipientKeys = CryptoTestUtils.generateX25519KeyPair();
         X25519PublicKeyParameters  recipientPub  = (X25519PublicKeyParameters)  recipientKeys.getPublic();
         X25519PrivateKeyParameters recipientPriv = (X25519PrivateKeyParameters) recipientKeys.getPrivate();
 
