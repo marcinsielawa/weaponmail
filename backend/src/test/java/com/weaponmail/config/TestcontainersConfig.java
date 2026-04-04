@@ -1,54 +1,55 @@
 package com.weaponmail.config;
 
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.context.annotation.Bean;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.cassandra.CassandraContainer;
 import org.testcontainers.kafka.KafkaContainer;
 import org.testcontainers.utility.DockerImageName;
-import org.testcontainers.containers.wait.strategy.Wait;
-
 import java.time.Duration;
 
 @TestConfiguration(proxyBeanMethods = false)
 public class TestcontainersConfig {
 
-    // ✅ STATIC fält — åtkomligt från @DynamicPropertySource (som är statisk)
-    // Testcontainers tilldelar en slumpmässig port på hosten; getBootstrapServers()
-    // returnerar "localhost:<random-port>" som Spring sen injicerar.
-    static final KafkaContainer kafka =
-        new KafkaContainer(DockerImageName.parse("apache/kafka:latest"))
-            .withStartupTimeout(Duration.ofSeconds(90));
+    // 1. Define Static Containers (Singleton Pattern)
+    static final KafkaContainer kafka = new KafkaContainer(
+        DockerImageName.parse("apache/kafka:latest")
+    ).withStartupTimeout(Duration.ofSeconds(90));
 
+    static final CassandraContainer scylla = new CassandraContainer(
+        DockerImageName.parse("scylladb/scylla:6.0.1") // Specify version for stability
+        .asCompatibleSubstituteFor("cassandra")
+    )
+    .withInitScript("schema.cql")
+    .withStartupTimeout(Duration.ofMinutes(2));
+
+    // 2. Start them eagerly in a static block
     static {
-        kafka.start(); // starta tidigt, innan Spring context
+        kafka.start();
+        scylla.start();
     }
 
-    // ✅ @DynamicPropertySource är STATISK — kan inte ta bean-parametrar.
-    // Vi läser kafka.getBootstrapServers() direkt från det statiska fältet ovan.
+    // 3. Override properties for BOTH before Context starts
     @DynamicPropertySource
-    static void overrideKafkaProperties(DynamicPropertyRegistry registry) {
+    static void overrideProperties(DynamicPropertyRegistry registry) {
+        // Kafka
         registry.add("spring.kafka.bootstrap-servers", kafka::getBootstrapServers);
-        registry.add("weaponmail.kafka.topics.inbox-events", () -> "inbox.events");
-    }
-
-    // ✅ Fortfarande en @Bean för att Testcontainers lifecycle-hantering ska funka
-    @Bean
-    KafkaContainer kafkaContainer() {
-        return kafka;
-    }
-
-    // ✅ Cassandra med @ServiceConnection — fungerar automatiskt, behöver ingen DynamicPropertySource
-    @Bean
-    @ServiceConnection
-    CassandraContainer scyllaDbContainer() {
-        DockerImageName scyllaImage = DockerImageName.parse("scylladb/scylla:latest")
-                .asCompatibleSubstituteFor("cassandra");
-
-        return new CassandraContainer(scyllaImage)
-                .withStartupTimeout(Duration.ofMinutes(2))
-                .withInitScript("schema.cql");
+        
+        // Scylla / Cassandra
+        registry.add("spring.cassandra.contact-points", 
+            () -> scylla.getContactPoint().getHostString() + ":" + scylla.getContactPoint().getPort());
+        registry.add("spring.cassandra.local-datacenter", scylla::getLocalDatacenter);
+        registry.add("spring.cassandra.keyspace-name", () -> "weaponmail");
+        
+        // Ensure schema action matches test needs
+        registry.add("spring.cassandra.schema-action", () -> "create_if_not_exists");
+        
+        System.out.println("Kutas * * * ** * ");
+        
+        System.out.println(scylla.getContactPoint().getHostString());
+        System.out.println(scylla.getContactPoint().getPort());
+        
+        System.out.println("Kutas * * * ** * ");
+        
     }
 }
