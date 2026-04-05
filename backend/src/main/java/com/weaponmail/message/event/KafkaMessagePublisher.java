@@ -24,6 +24,8 @@ public class KafkaMessagePublisher implements InboxEventPublisher {
     @Override
     public Mono<Void> publish(InboxEvent event) {
         
+       System.out.println("KuKafka - - - InboxEvent event " + inboxEventsTopic + " " + event);
+        
      // KafkaTemplate.send() → CompletableFuture<SendResult>
         // Mono.fromFuture()    → subscribes the event loop without blocking it
         // The Kafka producer's internal sender thread completes the future.
