@@ -4,17 +4,12 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.cassandra.CassandraContainer;
-import org.testcontainers.kafka.KafkaContainer;
 import org.testcontainers.utility.DockerImageName;
 import java.time.Duration;
 
 @TestConfiguration(proxyBeanMethods = false)
 public class TestcontainersConfig {
 
-    // 1. Define Static Containers (Singleton Pattern)
-    static final KafkaContainer kafka = new KafkaContainer(
-        DockerImageName.parse("apache/kafka:latest")
-    ).withStartupTimeout(Duration.ofSeconds(90));
 
     static final CassandraContainer scylla = new CassandraContainer(
         DockerImageName.parse("scylladb/scylla:6.0.1") // Specify version for stability
@@ -25,7 +20,6 @@ public class TestcontainersConfig {
 
     // 2. Start them eagerly in a static block
     static {
-        kafka.start();
         scylla.start();
     }
 
@@ -33,7 +27,6 @@ public class TestcontainersConfig {
     @DynamicPropertySource
     static void overrideProperties(DynamicPropertyRegistry registry) {
         // Kafka
-        registry.add("spring.kafka.bootstrap-servers", kafka::getBootstrapServers);
         
         // Scylla / Cassandra
         registry.add("spring.cassandra.contact-points", 
