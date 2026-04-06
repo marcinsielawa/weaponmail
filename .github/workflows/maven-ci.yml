@@ -2,8 +2,10 @@ name: Java CI with Maven
 
 on:
   push:
-    branches: [ "main" ]
+    # Trigger on any branch push, so you see "Unit Tests" everywhere
+    branches: [ "**" ]
   pull_request:
+    # Trigger on PRs targeting main
     branches: [ "main" ]
 
 jobs:
@@ -20,12 +22,13 @@ jobs:
         cache: 'maven'
 
     - name: Unit Tests (Fast)
-      # Run only Surefire tests (excludes *IT.java)
-      if: github.event_name == 'pull_request'
+      # Run this on every branch EXCEPT when pushing directly to main 
+      # (because verify handles it on main)
+      if: github.ref != 'refs/heads/main'
       run: mvn -B -ntp test --file backend/pom.xml
 
     - name: Full Verification (Slow - Integration Tests)
-      # Run everything (unit + integration) only on push to main or specific triggers
+      # Run the heavy stuff only when a PR is merged into main
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
       run: mvn -B -ntp verify --file backend/pom.xml
 
