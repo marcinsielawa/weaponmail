@@ -40,7 +40,7 @@ import java.util.Set;
 import java.util.UUID;
 
 @SpringBootTest
-class E2EEncryptionTest {
+class E2EEncryptionIT {
     
     // 1. Static Containers
     static final KafkaContainer kafka = new KafkaContainer(

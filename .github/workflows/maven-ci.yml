@@ -9,7 +9,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    
     steps:
     - uses: actions/checkout@v4
 
@@ -18,16 +17,23 @@ jobs:
       with:
         java-version: '25'
         distribution: 'temurin'
-        cache: 'maven' # Automatically caches ~/.m2 dependencies
+        cache: 'maven'
 
-    - name: Build with Maven
-      # -B: Batch mode (no progress bars)
-      # -ntp: No transfer progress (quieter logs)
+    - name: Unit Tests (Fast)
+      # Run only Surefire tests (excludes *IT.java)
+      if: github.event_name == 'pull_request'
       run: mvn -B -ntp test --file backend/pom.xml
 
+    - name: Full Verification (Slow - Integration Tests)
+      # Run everything (unit + integration) only on push to main or specific triggers
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      run: mvn -B -ntp verify --file backend/pom.xml
+
     - name: Upload Test Report
-      if: always() # Run even if tests fail
+      if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: surefire-reports
-        path: backend/target/surefire-reports/
+        name: surefire-and-failsafe-reports
+        path: |
+          backend/target/surefire-reports/
+          backend/target/failsafe-reports/
