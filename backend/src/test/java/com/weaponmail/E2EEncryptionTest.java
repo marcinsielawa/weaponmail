@@ -128,7 +128,7 @@ class E2EEncryptionTest {
         containerFactory.getConsumerFactory().updateConfigs(
                 java.util.Map.of(org.apache.kafka.clients.consumer.ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers)
             );
-        var endpoint = buildManualInboxListener();
+        //var endpoint = buildManualInboxListener();
 
         kafkaRegistry.getListenerContainers().forEach(container -> container.start());
         verifyAccountRepositoryWorks2();

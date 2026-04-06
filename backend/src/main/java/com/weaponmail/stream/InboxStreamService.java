@@ -43,7 +43,7 @@ public class InboxStreamService {
      *
      * groupId matches application.yml spring.kafka.consumer.group-id
      */
-    //@KafkaListener(topics = "${weaponmail.kafka.topics.inbox-events}", groupId = "${spring.kafka.consumer.group-id}")
+    @KafkaListener(topics = "${weaponmail.kafka.topics.inbox-events}", groupId = "${spring.kafka.consumer.group-id}")
     public void onInboxEvent(InboxEvent event) {
         log.debug("[SSE] Received event from Kafka for recipient: '{}'", event.recipient()); 
         Sinks.Many<InboxEvent> sink = sinks.get(event.recipient());
