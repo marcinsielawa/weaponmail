@@ -16,6 +16,8 @@
 **/.editorconfig
 **/npm-debug.log*
 **/yarn-error.log*
+**/playwright-report*
+**/test-results*
 
 # --- INFRASTRUCTURE (Docker/Local) ---
 **/data/
