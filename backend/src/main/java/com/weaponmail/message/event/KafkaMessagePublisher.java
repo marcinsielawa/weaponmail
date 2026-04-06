@@ -29,6 +29,7 @@ public class KafkaMessagePublisher implements InboxEventPublisher {
      // KafkaTemplate.send() → CompletableFuture<SendResult>
         // Mono.fromFuture()    → subscribes the event loop without blocking it
         // The Kafka producer's internal sender thread completes the future.
+
         CompletableFuture<Void> sendFuture = kafkaTemplate
              .send(inboxEventsTopic, event.recipient(), event)
              .thenApply(_ -> null);  // SendResult → Void

@@ -11,6 +11,7 @@ import com.weaponmail.message.event.InboxEventPublisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
@@ -32,6 +33,7 @@ import reactor.core.publisher.Mono;
  * the consumer side in {@link com.weaponmail.stream.InboxStreamService}.
  */
 @Service
+@EnableKafka
 public class MessageService {
 
     private static final Logger log = LoggerFactory.getLogger(MessageService.class);
@@ -39,7 +41,6 @@ public class MessageService {
     private final MessageRepository repository;
     
     private final InboxEventPublisher messageEventPublisher;
-
 
     public MessageService(MessageRepository repository,
                                 InboxEventPublisher messageEventPublisher) {
@@ -113,7 +114,8 @@ public class MessageService {
     public Mono<Void> sendMessage(MessageRequest request) {
         MessageEntity entity = buildEntity(request);
 
-        return repository.save(entity)
+        return
+        repository.save(entity)
                 .flatMap(saved -> {
                     InboxEvent event = toEvent(saved);
 

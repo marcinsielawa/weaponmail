@@ -4,6 +4,7 @@ import org.bouncycastle.crypto.AsymmetricCipherKeyPair;
 import org.bouncycastle.crypto.params.X25519PrivateKeyParameters;
 import org.bouncycastle.crypto.params.X25519PublicKeyParameters;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -93,11 +94,55 @@ class E2EEncryptionTest {
     private InboxStreamService streamService; // The SSE bridge
     
     @Autowired
+    BeanFactory context;
+    
+    @Autowired
     private org.springframework.kafka.config.KafkaListenerEndpointRegistry kafkaRegistry;
 
+    @Autowired
+    private org.springframework.kafka.config.KafkaListenerEndpointRegistry registry;
+    
+    @Autowired
+    private org.springframework.messaging.handler.annotation.support.MessageHandlerMethodFactory messageHandlerMethodFactory;
+    
+    @TestConfiguration
+    static class ManualKafkaConfig {
+        @Bean
+        public org.springframework.messaging.handler.annotation.support.DefaultMessageHandlerMethodFactory messageHandlerMethodFactory() {
+            var factory = new org.springframework.messaging.handler.annotation.support.DefaultMessageHandlerMethodFactory();
+            // This will allow Spring to map the JSON payload to the InboxEvent method argument
+            return factory;
+        }
+    }
+    
+    @Autowired
+    private org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory<String, InboxEvent> containerFactory;
     
     @Test
     void shouldPerformFullE2EEFlow() throws Exception {
+        
+        String bootstrapServers = kafka.getBootstrapServers();
+        System.out.println("🚀 Testcontainers Kafka is running at: " + bootstrapServers);
+        
+        //streamService = context.getBean(InboxStreamService.class);
+        
+        containerFactory.getConsumerFactory().updateConfigs(
+                java.util.Map.of(org.apache.kafka.clients.consumer.ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers)
+            );
+        
+        var endpoint = new org.springframework.kafka.config.MethodKafkaListenerEndpoint<String, InboxEvent>();
+        endpoint.setId("manual-inbox-listener");
+        endpoint.setGroupId("test-group-" + java.util.UUID.randomUUID());
+        endpoint.setTopics("inbox.events");
+        endpoint.setBean(streamService);
+        endpoint.setMethod(streamService.getClass().getMethod("onInboxEvent", InboxEvent.class));
+
+        endpoint.setBeanFactory(context);
+        endpoint.setMessageHandlerMethodFactory(messageHandlerMethodFactory);
+        
+        // 2. Register and START the container only now
+        registry.registerListenerContainer(endpoint, 
+            context.getBean(org.springframework.kafka.config.KafkaListenerContainerFactory.class), true);
 
         kafkaRegistry.getListenerContainers().forEach(container -> container.start());
         verifyAccountRepositoryWorks2();
@@ -111,8 +156,13 @@ class E2EEncryptionTest {
         X25519PublicKeyParameters  recipientPub  = (X25519PublicKeyParameters)  recipientKeys.getPublic();
         X25519PrivateKeyParameters recipientPriv = (X25519PrivateKeyParameters) recipientKeys.getPrivate();
         
+        Thread.sleep(2000); 
+        
         // ── 2. Open stream        
-        Flux<InboxEvent> eventStream = streamService.streamFor(targetEmail);
+        Flux<InboxEvent> eventStream = streamService.streamFor(targetEmail)
+                .doOnSubscribe(s -> System.out.println("📡 Test subscribed to SSE stream for " + targetEmail))
+                .doOnNext(e -> System.out.println("📥 Test received event from stream: " + e.messageId()));
+
 
         // ── 3. SENDER: Encrypt ─────────────────────────────────────────────────
         // Generate a random 32-byte AES body key
@@ -173,16 +223,25 @@ class E2EEncryptionTest {
         
         // ── 4. EXECUTE & VERIFY BACKBONE (Kafka -> SSE) ──────────────────────
         // We use StepVerifier to wait for the event to propagate through Kafka -> @KafkaListener -> Sink
-        StepVerifier.create(
-            service.sendMessage(request) // 1. Save to Scylla + Send to Kafka
-                   .thenMany(eventStream.take(1)) // 2. Wait for the event to pop out of the SSE stream
-        )
-        .assertNext(event -> {
-            assertEquals(targetEmail, event.recipient());
-            assertEquals(request.subject(), event.subject());
-            System.out.println("🚀 Backbone Verified! Kafka -> SSE event received: " + event.messageId());
-        })
-        .verifyComplete();
+        
+        StepVerifier.create(service.sendMessage(request))
+        .expectComplete()
+        .verify(Duration.ofSeconds(10));
+        
+    System.out.println("✅ 1. Message sent and persisted to Scylla.");
+        
+        
+    StepVerifier.create(streamService.streamFor(targetEmail).take(1))
+    .assertNext(event -> {
+        assertEquals(targetEmail, event.recipient());
+        assertEquals(request.subject(), event.subject());
+        System.out.println("🚀 2. Backbone Verified! Event received: " + event.messageId());
+    })
+    .expectComplete()
+    .verify(Duration.ofSeconds(10));
+    
+    
+    
 
         // ── 4. RECIPIENT: Fetch → Decrypt ──────────────────────────────────────
         StepVerifier.create(
@@ -215,7 +274,9 @@ class E2EEncryptionTest {
             } catch (Exception e) {
                 throw new RuntimeException("Decryption pipeline failed", e);
             }
-        }).verifyComplete();
+        })
+        .expectComplete()
+        .verify(Duration.ofSeconds(10)); // 🔥 TIMEOUT: Don't wait forever. Fail after 10s.
     }    
     
     void verifyAccountRepositoryWorks2() {
@@ -240,6 +301,7 @@ class E2EEncryptionTest {
             .doOnNext(acc -> System.out.println("👤 " + acc.username))
             .as(StepVerifier::create)
             .thenConsumeWhile(x -> true)
-            .verifyComplete();
+            .expectComplete()
+            .verify(Duration.ofSeconds(5));
     }
 }
