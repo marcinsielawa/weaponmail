@@ -10,6 +10,7 @@ import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
+import org.springframework.kafka.config.MethodKafkaListenerEndpoint;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.cassandra.CassandraContainer;
@@ -124,25 +125,10 @@ class E2EEncryptionTest {
         String bootstrapServers = kafka.getBootstrapServers();
         System.out.println("🚀 Testcontainers Kafka is running at: " + bootstrapServers);
         
-        //streamService = context.getBean(InboxStreamService.class);
-        
         containerFactory.getConsumerFactory().updateConfigs(
                 java.util.Map.of(org.apache.kafka.clients.consumer.ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers)
             );
-        
-        var endpoint = new org.springframework.kafka.config.MethodKafkaListenerEndpoint<String, InboxEvent>();
-        endpoint.setId("manual-inbox-listener");
-        endpoint.setGroupId("test-group-" + java.util.UUID.randomUUID());
-        endpoint.setTopics("inbox.events");
-        endpoint.setBean(streamService);
-        endpoint.setMethod(streamService.getClass().getMethod("onInboxEvent", InboxEvent.class));
-
-        endpoint.setBeanFactory(context);
-        endpoint.setMessageHandlerMethodFactory(messageHandlerMethodFactory);
-        
-        // 2. Register and START the container only now
-        registry.registerListenerContainer(endpoint, 
-            context.getBean(org.springframework.kafka.config.KafkaListenerContainerFactory.class), true);
+        var endpoint = buildManualInboxListener();
 
         kafkaRegistry.getListenerContainers().forEach(container -> container.start());
         verifyAccountRepositoryWorks2();
@@ -163,6 +149,7 @@ class E2EEncryptionTest {
                 .doOnSubscribe(s -> System.out.println("📡 Test subscribed to SSE stream for " + targetEmail))
                 .doOnNext(e -> System.out.println("📥 Test received event from stream: " + e.messageId()));
 
+        
 
         // ── 3. SENDER: Encrypt ─────────────────────────────────────────────────
         // Generate a random 32-byte AES body key
@@ -221,29 +208,21 @@ class E2EEncryptionTest {
         //when(messageRepository.findAllByKeyRecipient(targetEmail)).thenReturn(Flux.just(storedEntity));
         //when(messageRepository.findById(any(MessageKey.class))).thenReturn(Mono.just(storedEntity));
         
-        // ── 4. EXECUTE & VERIFY BACKBONE (Kafka -> SSE) ──────────────────────
-        // We use StepVerifier to wait for the event to propagate through Kafka -> @KafkaListener -> Sink
-        
-        StepVerifier.create(service.sendMessage(request))
+        // ── 2. EXECUTE BACKBONE (Kafka -> SSE) ──────────────────────────────
+        // We use thenMany to bridge the "Send" action with the "Wait for Stream" action.
+        StepVerifier.create(
+            service.sendMessage(request)           // 1. Send to Scylla + Kafka
+                   .thenMany(eventStream.take(1))  // 2. Switch to stream and wait for 1 event
+        )
+        .assertNext(event -> {
+            assertEquals(targetEmail, event.recipient());
+            assertEquals(request.subject(), event.subject());
+            System.out.println("🚀 Backbone Verified! Kafka -> SSE event received: " + event.messageId());
+        })
         .expectComplete()
-        .verify(Duration.ofSeconds(10));
-        
-    System.out.println("✅ 1. Message sent and persisted to Scylla.");
-        
-        
-    StepVerifier.create(streamService.streamFor(targetEmail).take(1))
-    .assertNext(event -> {
-        assertEquals(targetEmail, event.recipient());
-        assertEquals(request.subject(), event.subject());
-        System.out.println("🚀 2. Backbone Verified! Event received: " + event.messageId());
-    })
-    .expectComplete()
-    .verify(Duration.ofSeconds(10));
+        .verify(Duration.ofSeconds(15)); // 15s timeout to account for Kafka/Scylla startup
     
-    
-    
-
-        // ── 4. RECIPIENT: Fetch → Decrypt ──────────────────────────────────────
+        // ── 3. RECIPIENT: Fetch → Decrypt ──────────────────────────────────────
         StepVerifier.create(
             service.getMessages(targetEmail)
                    .flatMap(summary -> service.getMessageById(
@@ -277,6 +256,24 @@ class E2EEncryptionTest {
         })
         .expectComplete()
         .verify(Duration.ofSeconds(10)); // 🔥 TIMEOUT: Don't wait forever. Fail after 10s.
+    }
+
+    private MethodKafkaListenerEndpoint<String, InboxEvent> buildManualInboxListener() throws NoSuchMethodException {
+        var endpoint = new org.springframework.kafka.config.MethodKafkaListenerEndpoint<String, InboxEvent>();
+        endpoint.setId("manual-inbox-listener");
+        endpoint.setGroupId("test-group-" + java.util.UUID.randomUUID());
+        endpoint.setTopics("inbox.events");
+        endpoint.setBean(streamService);
+        endpoint.setMethod(streamService.getClass().getMethod("onInboxEvent", InboxEvent.class));
+
+        endpoint.setBeanFactory(context);
+        endpoint.setMessageHandlerMethodFactory(messageHandlerMethodFactory);
+        
+        // 2. Register and START the container only now
+        registry.registerListenerContainer(endpoint, 
+            context.getBean(org.springframework.kafka.config.KafkaListenerContainerFactory.class), true);
+        
+        return endpoint;
     }    
     
     void verifyAccountRepositoryWorks2() {

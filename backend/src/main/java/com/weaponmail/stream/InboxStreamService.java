@@ -28,7 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Any open SSE connection ({@link InboxStreamController}) subscribed to that
  * sink receives the event immediately via the reactive Flux.
  */
-@Component
+@Service
 public class InboxStreamService {
 
     private static final Logger log = LoggerFactory.getLogger(InboxStreamService.class);
