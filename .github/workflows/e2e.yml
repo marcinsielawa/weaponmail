@@ -1,0 +1,15 @@
+name: E2E Tests (Playwright)
+
+# This workflow is a skeleton to enable the 'Run workflow' button in the GitHub GUI.
+# It can be used to run full E2E suites from other branches on-demand.
+on:
+  workflow_dispatch:
+
+jobs:
+  skeleton:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Information
+        run: |
+          echo "This is a skeleton workflow on main to enable the GitHub GUI manual trigger."
+          echo "To run actual tests, select your feature branch in the 'Run workflow' dropdown."
