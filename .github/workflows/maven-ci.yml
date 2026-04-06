@@ -2,14 +2,15 @@ name: Java CI with Maven
 
 on:
   push:
-    branches: [ "main" ]
+    # Trigger on any branch push, so you see "Unit Tests" everywhere
+    branches: [ "**" ]
   pull_request:
+    # Trigger on PRs targeting main
     branches: [ "main" ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    
     steps:
     - uses: actions/checkout@v4
 
@@ -18,16 +19,24 @@ jobs:
       with:
         java-version: '25'
         distribution: 'temurin'
-        cache: 'maven' # Automatically caches ~/.m2 dependencies
+        cache: 'maven'
 
-    - name: Build with Maven
-      # -B: Batch mode (no progress bars)
-      # -ntp: No transfer progress (quieter logs)
+    - name: Unit Tests (Fast)
+      # Run this on every branch EXCEPT when pushing directly to main 
+      # (because verify handles it on main)
+      if: github.ref != 'refs/heads/main'
       run: mvn -B -ntp test --file backend/pom.xml
 
+    - name: Full Verification (Slow - Integration Tests)
+      # Run the heavy stuff only when a PR is merged into main
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      run: mvn -B -ntp verify --file backend/pom.xml
+
     - name: Upload Test Report
-      if: always() # Run even if tests fail
+      if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: surefire-reports
-        path: backend/target/surefire-reports/
+        name: surefire-and-failsafe-reports
+        path: |
+          backend/target/surefire-reports/
+          backend/target/failsafe-reports/

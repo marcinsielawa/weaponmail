@@ -5,6 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
@@ -28,7 +29,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * sink receives the event immediately via the reactive Flux.
  */
 @Service
-@EnableKafka
 public class InboxStreamService {
 
     private static final Logger log = LoggerFactory.getLogger(InboxStreamService.class);
@@ -73,8 +73,8 @@ public class InboxStreamService {
 
         Sinks.Many<InboxEvent> sink = sinks.computeIfAbsent(
                 recipient,
-                _ -> Sinks.many().multicast().onBackpressureBuffer(256, false));
-
+                _ -> Sinks.many().replay().latest());
+        
         return sink.asFlux()
                 .doOnSubscribe(sub -> log.debug("[SSE] Client subscribed to flux for {}", recipient))
                 .doFinally(signal -> {
