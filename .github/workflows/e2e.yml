@@ -1,0 +1,117 @@
+name: E2E Tests (Playwright)
+
+# Adds a "Run workflow" button in the GitHub Actions UI so that this
+# suite can be triggered on-demand without a code push.
+on:
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    name: Playwright E2E – Full Stack
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    # Docker must be available so that Testcontainers can spin up
+    # ScyllaDB and Kafka alongside the Spring Boot application.
+    steps:
+      # ── Checkout ─────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Java (backend) ───────────────────────────────────────────────────
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      # ── Node.js (frontend) ───────────────────────────────────────────────
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      # ── Frontend dependencies ────────────────────────────────────────────
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      # Install the Playwright browser binaries (Chromium only to keep
+      # the download small; expand to --with-deps if other browsers are needed)
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      # ── Start backend ────────────────────────────────────────────────────
+      # Spring Boot (via mvn spring-boot:run) automatically picks up the
+      # Testcontainers managed ScyllaDB and Kafka instances declared in
+      # the integration-test scope of pom.xml.
+      - name: Start backend (Spring Boot + Testcontainers)
+        working-directory: backend
+        run: |
+          mvn -B -ntp spring-boot:run \
+            -Dspring-boot.run.jvmArguments="-Dspring.profiles.active=e2e" \
+            &
+          echo "BACKEND_PID=$!" >> "$GITHUB_ENV"
+
+      # Wait until the backend health endpoint responds before starting tests.
+      - name: Wait for backend to be ready
+        run: |
+          echo "Waiting for backend on http://localhost:8080/actuator/health …"
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:8080/actuator/health > /dev/null 2>&1; then
+              echo "Backend is ready after ${i}s"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Backend did not become ready in time"
+          exit 1
+
+      # ── Start frontend ───────────────────────────────────────────────────
+      # The Angular dev server proxies /api/* to localhost:8080 via
+      # proxy.conf.json, so no CORS or network changes are needed.
+      - name: Start Angular dev server
+        working-directory: frontend
+        run: npm start -- --proxy-config proxy.conf.json &
+
+      - name: Wait for Angular dev server to be ready
+        run: |
+          echo "Waiting for Angular on http://localhost:4200 …"
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:4200 > /dev/null 2>&1; then
+              echo "Angular ready after ${i}s"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Angular dev server did not become ready in time"
+          exit 1
+
+      # ── Run Playwright tests ─────────────────────────────────────────────
+      - name: Run Playwright E2E tests
+        working-directory: frontend
+        run: npx playwright test
+        env:
+          CI: 'true'
+
+      # ── Artifacts ────────────────────────────────────────────────────────
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 14
+
+      - name: Upload Playwright traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: frontend/test-results/
+          retention-days: 7
