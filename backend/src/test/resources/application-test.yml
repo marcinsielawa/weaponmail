@@ -1,0 +1,51 @@
+logging:
+  level:
+    com.weaponmail.stream: DEBUG
+
+spring:
+
+  # --─ Virtual Threads (Java 25 / Spring Boot 4) ─────────────────────────────
+  # Enables virtual threads for ALL blocking work:
+  #   - @KafkaListener containers  ← key for InboxStreamService
+  #   - any remaining servlet/blocking code paths
+  # WebFlux's event loop is unaffected — it already uses Netty's NIO threads.
+  threads:
+    virtual:
+      enabled: true
+
+  # ── ScyllaDB / Cassandra ───────────────────────────────────────────────────
+  cassandra:
+    keyspace-name: weaponmail
+    contact-points:  []
+    local-datacenter: datacenter1
+    schema-action: create_if_not_exists
+    request:
+      timeout: 10s
+    connection:
+      connect-timeout: 10s
+      init-query-timeout: 10s
+
+  kafka:
+    bootstrap-servers: []  # PLAINTEXT_HOST listener (Mac → Docker port mapping)
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
+      properties:
+        enable.idempotence: true
+
+    consumer:
+      group-id: weaponmail-sse-group
+      auto-offset-reset: earliest         # SSE only needs new events, not historical replay
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.weaponmail.*"
+        spring.json.value.default.type: "com.weaponmail.message.event.InboxEvent"
+
+# ── WeaponMail app config ────────────────────────────────────────────────────
+weaponmail:
+  kafka:
+    topics:
+      inbox-events: inbox.events

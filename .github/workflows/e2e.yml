@@ -53,8 +53,9 @@ jobs:
       - name: Start backend (Spring Boot + Testcontainers)
         working-directory: backend
         run: |
-          mvn -B -ntp spring-boot:run \
-            -Dspring-boot.run.jvmArguments="-Dspring.profiles.active=e2e" \
+          mvn -B -ntp spring-boot:test-run \
+            -Dspring-boot.run.main-class=com.weaponmail.TestWeaponMailApplication \
+            -Dspring-boot.run.profiles=test \
             &
           echo "BACKEND_PID=$!" >> "$GITHUB_ENV"
 
