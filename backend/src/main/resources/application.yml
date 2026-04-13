@@ -15,6 +15,8 @@ management:
         step: 5s # Faster updates for load testing
         enabled: true # Ensure it's not disabled by a profile
   metrics:
+    tags:
+      application: weaponmail-api 
     export:
       otlp:
         enabled: true

@@ -2,6 +2,7 @@ global:
   scrape_interval: 5s
 
 scrape_configs:
-  - job_name: 'otel-collector'
+  - job_name: 'weaponmail-api'
+    metrics_path: '/actuator/prometheus' # The default Spring Boot path
     static_configs:
-      - targets: ['otel-collector:8889']
+      - targets: ['host.docker.internal:8080'] # Use your app's actual IP/Port
