@@ -76,3 +76,9 @@ weaponmail:
   kafka:
     topics:
       inbox-events: inbox.events
+
+server:
+  error:
+    include-message: always
+    include-stacktrace: always # Shows exactly where the E2EE or DB call failed
+    include-binding-errors: always
