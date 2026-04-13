@@ -53,6 +53,32 @@
 			<artifactId>spring-kafka</artifactId>
 		</dependency>
 
+		<!-- ── o11y Dependencies ───────────────────────────────────── -->
+
+	    <!-- Standard Spring Boot Actuator for metrics endpoints -->
+	    <dependency>
+	        <groupId>org.springframework.boot</groupId>
+	        <artifactId>spring-boot-starter-actuator</artifactId>
+	    </dependency>
+
+	    <!-- Micrometer Tracing Bridge to OTel (for Traces) -->
+	    <dependency>
+	        <groupId>io.micrometer</groupId>
+	        <artifactId>micrometer-tracing-bridge-otel</artifactId>
+	    </dependency>
+
+	    <!-- OTLP Exporter (to send data to the OTel Collector) -->
+	    <dependency>
+	        <groupId>io.opentelemetry</groupId>
+	        <artifactId>opentelemetry-exporter-otlp</artifactId>
+	    </dependency>
+
+	    <!-- Prometheus Registry (for Metrics) -->
+	    <dependency>
+	        <groupId>io.micrometer</groupId>
+	        <artifactId>micrometer-registry-prometheus</artifactId>
+	    </dependency>
+
 		<!-- ── Test Dependencies ───────────────────────────────────── -->
 
 		<dependency>

@@ -2,6 +2,30 @@ logging:
   level:
     com.weaponmail.stream: DEBUG
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, prometheus # Expose prometheus for scraping
+  otlp:
+    metrics:
+      export:
+        # PUSH to the Docker port you exposed
+        url: http://127.0.0.1:4318/v1/metrics 
+        step: 5s # Faster updates for load testing
+        enabled: true # Ensure it's not disabled by a profile
+  metrics:
+    export:
+      otlp:
+        enabled: true
+    distribution:
+      percentiles-histogram:
+        # REQUIRED to see the "Saturation Hockey Stick" in Grafana
+        http.server.requests: true 
+  tracing:
+    sampling:
+      probability: 1.0 # Capture 100% of traces for testing (don't do this in high-scale prod!)
+
 spring:
 
   # --─ Virtual Threads (Java 25 / Spring Boot 4) ─────────────────────────────

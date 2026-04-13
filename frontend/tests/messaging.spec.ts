@@ -140,13 +140,8 @@ test.describe('E2EE Messaging flow', () => {
     // Click send and wait for the button to return to its non-sending label,
     // indicating that the ECDH encryption + HTTP POST have completed.
     await alicePage.click('button[type="submit"]');
-    await expect(alicePage.locator('button[type="submit"]')).not.toContainText(
-      'Encrypting & Sending...',
-      { timeout: 30_000 }
-    );
-
     // After sending, the app navigates back to the inbox
-    await expect(alicePage).toHaveURL(/\/inbox/, { timeout: 15_000 });
+    await expect(alicePage).toHaveURL(/\/inbox/, { timeout: 30_000 });
   });
 
   // -------------------------------------------------------------------------

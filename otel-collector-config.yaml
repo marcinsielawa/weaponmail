@@ -1,0 +1,23 @@
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+exporters:
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+  otlphttp/prometheus:
+    endpoint: "http://prometheus:9090/api/v1/otlp"
+    tls:
+      insecure: true
+  # ADD THIS:
+  debug:
+    verbosity: basic 
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      # ADD 'debug' here:
+      exporters: [prometheus, otlphttp/prometheus, debug]
